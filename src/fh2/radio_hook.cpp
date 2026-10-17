@@ -153,6 +153,13 @@ std::byte* g_img_base = nullptr;
 // True while `rs` is still a live RadioStreamFmod whose sample is still a
 // RadioSample pointing at `props`. Checked before every write made from the
 // control thread, so a freed/reused object is never written to.
+bool is_sample_vtbl(const std::byte* base, const void* vt) noexcept {
+    for (uint32_t r : {rva::kMusicSampleVtbl, rva::kDJSampleVtbl, rva::kIdentSampleVtbl,
+                       rva::kRadioSampleVtbl})
+        if (vt == base + r) return true;
+    return false;
+}
+
 bool props_still_live(std::byte* rs, std::byte* props) noexcept {
     if (!rs || !props || !g_img_base) return false;
     void* vt = nullptr;
@@ -161,7 +168,7 @@ bool props_still_live(std::byte* rs, std::byte* props) noexcept {
     std::byte* p = nullptr;
     return fh6::safe_read(rs, vt) && vt == g_img_base + rva::kRadioStreamFmodVtbl &&
            fh6::safe_read(rs + layout::kStreamSample, sample) && sample &&
-           fh6::safe_read(sample, svt) && svt == g_img_base + rva::kRadioSampleVtbl &&
+           fh6::safe_read(sample, svt) && is_sample_vtbl(g_img_base, svt) &&
            fh6::safe_read(sample + layout::kSampleProps, p) && p == props;
 }
 std::string g_meta_title, g_meta_artist;       // latest from the control loop
@@ -454,22 +461,48 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
         const uint64_t n = stats_.loads_seen.fetch_add(1, std::memory_order_relaxed) + 1;
 
         SampleInfo info;
-        void* vt = nullptr;
+        void* vt          = nullptr;
+        void* svt         = nullptr;
+        bool rs_ok        = false;
+        Kind class_kind   = Kind::other;
         if (rs && fh6::safe_read(rs, vt) && vt == img_.at(rva::kRadioStreamFmodVtbl)) {
+            rs_ok              = true;
             std::byte* sample = nullptr;
-            void* svt = nullptr;
             if (fh6::safe_read(rs + layout::kStreamSample, sample) && sample &&
-                fh6::safe_read(sample, svt) && svt == img_.at(rva::kRadioSampleVtbl) &&
-                fh6::safe_read(sample + layout::kSampleProps, info.props) && info.props) {
-                info.sound_name = read_str(info.props + layout::kPropSoundName);
-                info.event_name = read_str(info.props + layout::kPropEventName);
+                fh6::safe_read(sample, svt) && is_sample_vtbl(img_.base, svt)) {
+                if (svt == img_.at(rva::kMusicSampleVtbl)) class_kind = Kind::track;
+                else if (svt == img_.at(rva::kDJSampleVtbl)) class_kind = Kind::dj;
+                else if (svt == img_.at(rva::kIdentSampleVtbl)) class_kind = Kind::stinger;
+                if (fh6::safe_read(sample + layout::kSampleProps, info.props) && info.props) {
+                    info.sound_name = read_str(info.props + layout::kPropSoundName);
+                    info.event_name = read_str(info.props + layout::kPropEventName);
+                }
             }
         }
         if (!(mode & (fmod::OPENMEMORY | fmod::OPENMEMORY_POINT))) info.bank = read_cstr(name);
 
-        if (info.event_name.find("/Radio/Track") != std::string::npos) info.kind = Kind::track;
-        else if (info.event_name.find("/Radio/DJ") != std::string::npos) info.kind = Kind::dj;
-        else if (info.event_name.find("/Radio/Stinger") != std::string::npos) info.kind = Kind::stinger;
+        // What kind of sample: the object's class first, then its event
+        // path, then the bank file it streams from.
+        info.kind = class_kind;
+        if (info.kind == Kind::other) {
+            if (info.event_name.find("/Radio/Track") != std::string::npos) info.kind = Kind::track;
+            else if (info.event_name.find("/Radio/DJ") != std::string::npos) info.kind = Kind::dj;
+            else if (info.event_name.find("/Radio/Stinger") != std::string::npos) info.kind = Kind::stinger;
+        }
+        if (info.kind == Kind::other && info.bank.find("HZ2_MX_Radio_") != std::string::npos) {
+            if (info.bank.find("_Tracks.bank") != std::string::npos) info.kind = Kind::track;
+            else if (info.bank.find("_DJ_") != std::string::npos) info.kind = Kind::dj;
+            else if (info.bank.find("_Stingers_") != std::string::npos) info.kind = Kind::stinger;
+        }
+        if (!info.props && n <= 16) {
+            auto rva_of = [&](const void* p) -> uint64_t {
+                auto a = reinterpret_cast<uintptr_t>(p), b = reinterpret_cast<uintptr_t>(img_.base);
+                return (a >= b && a < b + img_.size) ? a - b : a;
+            };
+            fh6::log::warn("[fh2] load #{}: couldn't read sample details (rs_ok={} rs_vt=0x{:X} "
+                           "sample_vt=0x{:X}); falling back to the bank name",
+                           n, rs_ok, rva_of(vt), rva_of(svt));
+        }
 
         info.station = station_from_bank(info.bank);
         if (!info.station && stations_) info.station = stations_->station_for(info.sound_name);
@@ -477,7 +510,7 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
 
         const Settings s    = settings_->get();
         const bool station_ok = s.takeover_station == 0 || info.station == s.takeover_station;
-        const bool takeover   = s.enabled && info.props && info.kind != Kind::other && station_ok &&
+        const bool takeover   = s.enabled && info.kind != Kind::other && station_ok &&
                               (info.kind == Kind::track || s.mute_dj);
 
         if (n <= 64 || takeover) {
@@ -537,9 +570,10 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
 
         // The station clock may ask tryStart to seek the event deep into the
         // (now 4 h) track; our stream is live, so always start at 0.
-        fh6::seh_call([&] { *reinterpret_cast<int32_t*>(rs + layout::kStreamStartMs) = 0; });
+        if (rs_ok)
+            fh6::seh_call([&] { *reinterpret_cast<int32_t*>(rs + layout::kStreamStartMs) = 0; });
 
-        {
+        if (info.props) {
             std::scoped_lock lk{g_mu};
             Original& orig = g_originals[info.props];
             if (s.extend_tracks) {

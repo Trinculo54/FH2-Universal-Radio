@@ -179,7 +179,7 @@ static FakeSample* make_sample(GameImage img, const std::string& sound, const st
     std::memcpy(f->props + layout::kPropMarkers + 16, &e, 8);
     void* vt = img.at(rva::kRadioStreamFmodVtbl);
     std::memcpy(f->rs, &vt, 8);
-    void* svt = img.at(rva::kRadioSampleVtbl);
+    void* svt = img.at(event.find("/DJ") != std::string::npos ? rva::kDJSampleVtbl : rva::kMusicSampleVtbl);
     std::memcpy(f->sample, &svt, 8);
     int32_t start = 123456;
     std::memcpy(f->rs + layout::kStreamStartMs, &start, 4);
@@ -400,6 +400,30 @@ int main(int argc, char** argv) {
     std::byte junk[0x60]{};
     r = call_like_game(create_stub, junk, system, bank7, 0x88u, bank_exinfo, &out);
     CHECK(r == 0 && !g_calls.back().name_null);
+
+    // 5b) Sample details unreadable -> classify from the bank name alone.
+    {
+        auto* bare = make_sample(img, "x", "/Master/Radio/Track", "a", "b", 1000);
+        std::byte* nothing = nullptr;
+        std::memcpy(bare->rs + layout::kStreamSample, &nothing, 8);
+        std::ofstream f{ini, std::ios::trunc};
+        f << "[takeover]\nenabled=1\nstation=7\n";
+    }
+    Sleep(1100);
+    {
+        std::ofstream f{ini, std::ios::trunc};
+        f << "[takeover]\nenabled=1\nstation=7\n";
+    }
+    settings.refresh();
+    {
+        auto* bare = make_sample(img, "x", "/Master/Radio/Track", "a", "b", 1000);
+        std::byte* nothing = nullptr;
+        std::memcpy(bare->rs + layout::kStreamSample, &nothing, 8);
+        r = call_like_game(create_stub, bare->rs, system, bank7, 0x88u, bank_exinfo, &out);
+        CHECK(r == 0 && g_calls.back().name_null && (g_calls.back().mode & fmod::LOOP_NORMAL));
+        r = call_like_game(create_stub, bare->rs, system, djbank, 0x88u, bank_exinfo, &out);
+        CHECK(r == 0 && g_calls.back().name_null && (g_calls.back().mode & fmod::LOOP_OFF));
+    }
 
     // 6) station map fallback when the name is a memory blob.
     {

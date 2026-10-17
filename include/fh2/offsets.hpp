@@ -36,8 +36,12 @@ constexpr uint32_t kTrackGetSubSoundCall = 0x010221F2u;
 
 // RTTI-confirmed vtable of RadioStreamFmod (".?AVRadioStreamFmod@@").
 constexpr uint32_t kRadioStreamFmodVtbl = 0x02E76220u;
-// RTTI-confirmed vtable of RadioSample (".?AVRadioSample@@").
-constexpr uint32_t kRadioSampleVtbl = 0x02E74ED8u;
+// RTTI-confirmed sample vtables. The radio only ever loads the subclasses;
+// all four share IRadioSample's props getter (sample+0x08).
+constexpr uint32_t kRadioSampleVtbl = 0x02E74ED8u; // ".?AVRadioSample@@" (base)
+constexpr uint32_t kMusicSampleVtbl = 0x02E74EF8u; // ".?AVMusicSample@@"  tracks
+constexpr uint32_t kDJSampleVtbl    = 0x02E76570u; // ".?AVDJSample@@"     DJ lines
+constexpr uint32_t kIdentSampleVtbl = 0x02E76590u; // ".?AVIdentSample@@"  station jingles
 
 // The game's global operator new(size_t). Only ever called from a game thread.
 constexpr uint32_t kOperatorNew = 0x003229C0u;
