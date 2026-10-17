@@ -42,7 +42,16 @@ else()
     add_link_options(-static)
 endif()
 
-# The proxy DLL: d3dcompiler_47.dll, dropped next to azimuth.exe.
+# FH2 Mod Loader: d3dcompiler_47.dll next to azimuth.exe, loads fh2-mods\*.dll.
+add_library(fh2loader SHARED loader/loader.cpp)
+if(NOT MSVC)
+    target_sources(fh2loader PRIVATE loader/d3dcompiler_47.def)
+endif()
+target_include_directories(fh2loader PRIVATE loader)
+target_link_libraries(fh2loader PRIVATE user32)
+set_target_properties(fh2loader PROPERTIES OUTPUT_NAME d3dcompiler_47 PREFIX "")
+
+# The radio itself: fh2-mods\FH2UniversalRadio.dll.
 add_library(fh2radio SHARED
     src/proxy/dll_main.cpp
     src/bridge.cpp
@@ -70,15 +79,8 @@ add_library(fh2radio SHARED
     src/sources/online_radio_source.cpp
 )
 
-# MSVC carries the forwarders via pragmas (msvc_exports.inc) because its .def
-# parser rejects absolute paths in forwarder targets; MinGW takes the .def.
-if(NOT MSVC)
-    target_sources(fh2radio PRIVATE src/proxy/d3dcompiler_47.def)
-endif()
-
 target_include_directories(fh2radio PRIVATE
     include
-    src/proxy
     third_party/nlohmann
     third_party/toml11
     third_party/miniaudio
@@ -88,7 +90,7 @@ target_include_directories(fh2radio PRIVATE
 target_link_libraries(fh2radio PRIVATE ws2_32 bcrypt psapi winhttp ole32 uuid ksuser runtimeobject)
 
 set_target_properties(fh2radio PROPERTIES
-    OUTPUT_NAME d3dcompiler_47
+    OUTPUT_NAME FH2UniversalRadio
     PREFIX ""
 )
 

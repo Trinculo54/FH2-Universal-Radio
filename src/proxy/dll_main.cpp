@@ -1,21 +1,11 @@
-// d3dcompiler_47.dll proxy for Azimuth.
+// FH2 Universal Radio plugin entry point (fh2-mods\FH2UniversalRadio.dll).
 //
-// azimuth.exe statically imports d3dcompiler_47.dll (for D3DCompile) and the
-// loader looks next to the exe first, so dropping this DLL beside
-// azimuth.exe gets us loaded at startup without touching any of Azimuth's
-// own files -- and without fighting Forza Horizon 2 Extra Options, which
-// already owns winmm.dll. Every export is a PE forwarder to the real system
-// DLL (src/proxy/d3dcompiler_47.def for llvm-mingw, the pragmas below for
-// MSVC), so Azimuth's shader compiles never run through our code.
-//
-// DllMain only spawns the bridge thread; everything else (waiting for the
-// game image, patching the radio, HTTP, Spotify) happens off the loader lock.
+// Loaded by the FH2 Mod Loader (loader/, d3dcompiler_47.dll next to
+// azimuth.exe). DllMain only spawns the bridge thread; everything else
+// (waiting for the game image, patching the radio, HTTP, Spotify) happens
+// off the loader lock.
 
 #include <windows.h>
-
-#ifdef _MSC_VER
-#include "msvc_exports.inc"
-#endif
 
 namespace fh6 {
 void run_bridge(HMODULE self) noexcept;

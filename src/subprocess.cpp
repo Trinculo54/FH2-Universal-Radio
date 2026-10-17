@@ -111,6 +111,7 @@ std::filesystem::path stderr_log_path() {
         fs::path dir  = (n && n < MAX_PATH) ? fs::path{buf}.parent_path() : fs::temp_directory_path();
         std::error_code ec;
         if (fs::is_directory(dir / "fh2-radio", ec)) dir /= "fh2-radio";
+        else if (fs::is_directory(dir.parent_path() / "fh2-radio", ec)) dir = dir.parent_path() / "fh2-radio";
         fs::path p = dir / "helpers.log";
         if (fs::file_size(p, ec) > (4u << 20) && !ec) fs::remove(p, ec);
         return p;

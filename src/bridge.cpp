@@ -33,11 +33,17 @@ namespace fh6 {
 
 namespace {
 
+// The Azimuth folder. The plugin lives in <Azimuth>\fh2-mods\, so step up
+// out of that; a DLL sitting right next to azimuth.exe is used as-is.
 std::filesystem::path module_directory(HMODULE self) {
     wchar_t buf[MAX_PATH];
     DWORD n = GetModuleFileNameW(self, buf, MAX_PATH);
     if (n == 0 || n >= MAX_PATH) return {};
-    return std::filesystem::path{buf}.parent_path();
+    auto dir = std::filesystem::path{buf}.parent_path();
+    std::wstring leaf = dir.filename().wstring();
+    for (auto& c : leaf) c = static_cast<wchar_t>(std::towlower(c));
+    if (leaf == L"fh2-mods") dir = dir.parent_path();
+    return dir;
 }
 
 bool host_is_game(const std::filesystem::path& dll_dir) {

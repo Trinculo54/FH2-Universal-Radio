@@ -5,7 +5,8 @@
 #   $ scripts/build.sh
 #
 # Output mirrors scripts/build.ps1:
-#   dist/d3dcompiler_47.dll     the proxy DLL (drops next to azimuth.exe)
+#   dist/d3dcompiler_47.dll     the FH2 Mod Loader (drops next to azimuth.exe)
+#   dist/fh2-mods/FH2UniversalRadio.dll  the radio mod
 #   dist/fh2-radio/ui/          dashboard
 #   dist/fh2-radio/config.toml  seeded from config.example.toml
 #   dist/README.txt             same end-user blurb as the Windows build
@@ -60,6 +61,8 @@ rm -rf "$dist"
 mkdir -p "$dist/fh2-radio"
 
 cp "$build/d3dcompiler_47.dll"     "$dist/"
+mkdir -p "$dist/fh2-mods"
+cp "$build/FH2UniversalRadio.dll"  "$dist/fh2-mods/"
 cp "$build/fh2-radio-worker.exe"   "$dist/fh2-radio/"
 mkdir -p "$dist/fh2-radio/assets"
 cp "$root/assets/default_artwork.png" "$dist/fh2-radio/assets/default_artwork.png"
