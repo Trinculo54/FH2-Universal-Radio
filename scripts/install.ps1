@@ -1,51 +1,49 @@
-# Copies the built mod into a Forza Horizon 6 install. Run after build.ps1
+# Copies the built mod into an Azimuth folder (the one with azimuth.exe).
+# Run after build.ps1.
 #
-#   PS> .\scripts\install.ps1 -GameDir "C:\XboxGames\Forza Horizon 6\Content"
+#   PS> .\scripts\install.ps1 -AzimuthDir "D:\Games\Azimuth"
 #
-# Existing files are backed up to *.bak before being overwritten.
+# Existing files are backed up to *.bak before being overwritten. Your
+# config.toml, fh2.ini, Spotify login and downloaded helpers are kept.
 
 param(
-    [Parameter(Mandatory = $true)] [string] $GameDir
+    [Parameter(Mandatory = $true)] [string] $AzimuthDir
 )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $root "dist"
 
-if (-not (Test-Path (Join-Path $dist "version.dll"))) {
-    throw "dist\version.dll not found -- run scripts\build.ps1 first."
+if (-not (Test-Path (Join-Path $dist "d3dcompiler_47.dll"))) {
+    throw "dist\d3dcompiler_47.dll not found -- run scripts\build.ps1 first."
 }
-if (-not (Test-Path $GameDir)) {
-    throw "Game directory not found: $GameDir"
+if (-not (Test-Path $AzimuthDir)) {
+    throw "Azimuth directory not found: $AzimuthDir"
 }
-if (-not (Test-Path (Join-Path $GameDir "forzahorizon6.exe"))) {
-    Write-Warning "forzahorizon6.exe not found in $GameDir -- make sure this is the right folder."
-}
-
-function Backup-AndCopy([string]$src, [string]$dst) {
-    $dstDir = Split-Path -Parent $dst
-    if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Force -Path $dstDir | Out-Null }
-    if (Test-Path $dst) { Copy-Item $dst "$dst.bak" -Force }
-    Copy-Item $src $dst -Force
-    "  + $($dst.Substring($GameDir.Length + 1))"
+if (-not (Test-Path (Join-Path $AzimuthDir "azimuth.exe"))) {
+    Write-Warning "azimuth.exe not found in $AzimuthDir -- make sure this is the right folder."
 }
 
-Backup-AndCopy (Join-Path $dist "version.dll") (Join-Path $GameDir "version.dll") | Out-Host
+function Backup-AndCopy($src, $dst) {
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dst) | Out-Null
+    if (Test-Path $dst) { Copy-Item -Force $dst "$dst.bak" }
+    Copy-Item -Force $src $dst
+    "  + $($dst.Substring($AzimuthDir.Length).TrimStart('\'))"
+}
 
-$dataDir = Join-Path $GameDir "fh6-radio"
-if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Force -Path $dataDir | Out-Null }
-Copy-Item -Recurse -Force (Join-Path $dist "fh6-radio\ui") $dataDir
-Copy-Item -Recurse -Force (Join-Path $dist "fh6-radio\assets") (Join-Path $dataDir "assets")
+Backup-AndCopy (Join-Path $dist "d3dcompiler_47.dll") (Join-Path $AzimuthDir "d3dcompiler_47.dll") | Out-Host
+
+$dataDir = Join-Path $AzimuthDir "fh2-radio"
+New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+Copy-Item -Recurse -Force (Join-Path $dist "fh2-radio\ui") $dataDir
+Copy-Item -Recurse -Force (Join-Path $dist "fh2-radio\assets") $dataDir
+Copy-Item -Force (Join-Path $dist "README.txt") (Join-Path $dataDir "README.txt")
 $cfg = Join-Path $dataDir "config.toml"
 if (-not (Test-Path $cfg)) {
-    Copy-Item (Join-Path $dist "fh6-radio\config.toml") $cfg
-    Write-Host "  + fh6-radio\config.toml  (seeded from example)" -ForegroundColor Yellow
+    Copy-Item (Join-Path $dist "fh2-radio\config.toml") $cfg
+    Write-Host "  + fh2-radio\config.toml  (seeded from example)" -ForegroundColor Yellow
 }
+Backup-AndCopy (Join-Path $dist "fh2-radio\fh2-radio-worker.exe") (Join-Path $dataDir "fh2-radio-worker.exe") | Out-Host
 
-$workerExe = Join-Path $dist "fh6-radio\fh6-radio-worker.exe"
-if (Test-Path $workerExe) {
-    Backup-AndCopy $workerExe (Join-Path $dataDir "fh6-radio-worker.exe") | Out-Host
-}
-
-Write-Host "`nDone. Launch the game, set Audio -> Radio DJ = Off, Streamer Mode = On." -ForegroundColor Green
-Write-Host "Then open http://localhost:8420 in any browser on this LAN."
+Write-Host "`nDone. Launch FH2, set Audio > Radio DJ = Off and tune to Horizon Pulse." -ForegroundColor Green
+Write-Host "Then open http://localhost:8420 in any browser on this machine."

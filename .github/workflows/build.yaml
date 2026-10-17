@@ -1,23 +1,33 @@
 name: Build
 on:
   push:
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: pwsh
+    runs-on: ubuntu-latest
+    env:
+      LLVM_MINGW_VERSION: "20260922"
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
+      - name: Install llvm-mingw + ninja
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+          curl -fsSL "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VERSION}/llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-ubuntu-22.04-x86_64.tar.xz" -o llvm-mingw.tar.xz
+          sudo mkdir -p /opt/llvm-mingw
+          sudo tar -xJf llvm-mingw.tar.xz -C /opt/llvm-mingw --strip-components=1
+
       - name: Build distribution into dist/
-        run: .\scripts\build.ps1
+        run: |
+          ./scripts/get-deps.sh
+          ./scripts/build.sh
 
       - name: Upload distribution
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
-          name: fh6-universal-radio
+          name: fh2-universal-radio
           path: dist/

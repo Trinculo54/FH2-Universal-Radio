@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
-# Copies the built mod into a Forza Horizon 6 install. Run after build.sh
+# Copies the built mod into an Azimuth folder (the one with azimuth.exe).
+# Run after build.sh.
 #
+#   $ scripts/install.sh /path/to/Azimuth
 #
-# On Linux the path is typically inside a Proton prefix, e.g.
-#   ~/.steam/steam/steamapps/common/ForzaHorizon6
-# or, for the Xbox/Game Pass install routed through Proton:
-#   ~/.steam/steam/steamapps/compatdata/<appid>/pfx/drive_c/...
-#
-# Existing files are backed up to *.bak before being overwritten.
+# Existing files are backed up to *.bak before being overwritten. Your
+# config.toml, fh2.ini, Spotify login and downloaded helpers are kept.
 
 set -euo pipefail
 
-game=${1:?Usage: $0 <game-dir>}
+azimuth=${1:?Usage: $0 <azimuth-dir>}
 root=$(cd "$(dirname "$0")/.." && pwd)
 dist=$root/dist
 
-[ -f "$dist/version.dll" ] || { echo "dist/version.dll not found, run scripts/build.sh first." >&2; exit 1; }
-[ -d "$game" ]             || { echo "Game directory not found: $game" >&2; exit 1; }
-[ -f "$game/forzahorizon6.exe" ] || {
-    printf '\033[33mforzahorizon6.exe not found in %s, make sure this is the right folder.\033[0m\n' "$game" >&2
+[ -f "$dist/d3dcompiler_47.dll" ] || { echo "dist/d3dcompiler_47.dll not found, run scripts/build.sh first." >&2; exit 1; }
+[ -d "$azimuth" ] || { echo "Azimuth directory not found: $azimuth" >&2; exit 1; }
+[ -f "$azimuth/azimuth.exe" ] || {
+    printf '\033[33mazimuth.exe not found in %s, make sure this is the right folder.\033[0m\n' "$azimuth" >&2
     exit 1
 }
 
@@ -28,22 +26,20 @@ backup_and_copy() {
     mkdir -p "$(dirname "$dst")"
     [ -f "$dst" ] && cp -f "$dst" "$dst.bak"
     cp -f "$src" "$dst"
-    printf '  + %s\n' "${dst#"$game/"}"
+    printf '  + %s\n' "${dst#"$azimuth/"}"
 }
 
-backup_and_copy "$dist/version.dll" "$game/version.dll"
+backup_and_copy "$dist/d3dcompiler_47.dll" "$azimuth/d3dcompiler_47.dll"
 
-mkdir -p "$game/fh6-radio"
-cp -rfT "$dist/fh6-radio/ui" "$game/fh6-radio/ui"
-cp -rfT "$dist/fh6-radio/assets" "$game/fh6-radio/assets"
-if [ ! -f "$game/fh6-radio/config.toml" ]; then
-    cp "$dist/fh6-radio/config.toml" "$game/fh6-radio/config.toml"
-    printf '\033[33m  + fh6-radio/config.toml  (seeded from example)\033[0m\n'
+mkdir -p "$azimuth/fh2-radio"
+cp -rfT "$dist/fh2-radio/ui" "$azimuth/fh2-radio/ui"
+cp -rfT "$dist/fh2-radio/assets" "$azimuth/fh2-radio/assets"
+cp -f "$dist/README.txt" "$azimuth/fh2-radio/README.txt"
+if [ ! -f "$azimuth/fh2-radio/config.toml" ]; then
+    cp "$dist/fh2-radio/config.toml" "$azimuth/fh2-radio/config.toml"
+    printf '\033[33m  + fh2-radio/config.toml  (seeded from example)\033[0m\n'
 fi
+backup_and_copy "$dist/fh2-radio/fh2-radio-worker.exe" "$azimuth/fh2-radio/fh2-radio-worker.exe"
 
-if [ -f "$dist/fh6-radio/fh6-radio-worker.exe" ]; then
-    backup_and_copy "$dist/fh6-radio/fh6-radio-worker.exe" "$game/fh6-radio/fh6-radio-worker.exe"
-fi
-
-printf '\n\033[32mDone. Launch the game, set Audio -> Radio DJ = Off, Streamer Mode = On.\033[0m\n'
-echo "Then open http://localhost:8420 in any browser on this LAN."
+printf '\n\033[32mDone. Launch FH2, set Audio > Radio DJ = Off and tune to Horizon Pulse.\033[0m\n'
+echo "Then open http://localhost:8420 in any browser on this machine."

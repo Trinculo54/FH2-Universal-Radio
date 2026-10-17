@@ -1,8 +1,8 @@
 {
-  "name": "fh6-universal-radio-tooling",
+  "name": "fh2-universal-radio-tooling",
   "private": true,
   "version": "0.0.0",
-  "description": "Lint/format/test tooling for the FH6 Universal Radio dashboard (ui/dist).",
+  "description": "Lint/format/test tooling for the FH2 Universal Radio dashboard (ui/dist).",
   "scripts": {
     "format":       "prettier --write \"ui/**/*.{js,css,html}\"",
     "format:check": "prettier --check \"ui/**/*.{js,css,html}\"",
