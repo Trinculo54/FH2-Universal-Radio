@@ -46,6 +46,10 @@ The other options are on by default. `mute_dj` silences the DJ and jingles, `sho
 
 Everything else, like sources, volume and local music folders, is set from the dashboard just like in FH6 Universal Radio.
 
+### Updates
+
+When a newer FH2 Universal Radio is out, the title screen tells you: "PRESS (A) TO START" gets a note like "FH2 Universal Radio 1.3.0 is available" added to it. The mod asks GitHub at most every six hours and remembers the answer between launches, and `check=0` under `[updates]` in `fh2.ini` turns that off. If another mod has put back an older FH2 Mod Loader than the one the radio came with, the title screen says that too, and reinstalling the radio fixes it. Other mods that use the loader, like WheresMyBuddy, put their notes in the same spot. The version you have is in the first line of `bridge.log` and in the DLL's file properties.
+
 ## Uninstall
 
 Delete `fh2-mods\FH2UniversalRadio.dll` and the `fh2-radio` folder from your Azimuth folder. If you don't use any other FH2 mods, delete `d3dcompiler_47.dll` and the `fh2-mods` folder too.
@@ -59,7 +63,7 @@ The output is the FH2 Mod Loader (`d3dcompiler_47.dll`, built from `loader/`) pl
 ./scripts/build.sh      # compile + stage dist/
 ```
 
-`dist/` then holds `d3dcompiler_47.dll`, the `fh2-mods` and `fh2-radio` folders and a `README.txt`, ready to zip up. GitHub Actions does the same on every push and uploads the result as a build artifact. Pushing a tag like `v1.1.0` also creates a draft release with the zip attached, ready to be published.
+`dist/` then holds `d3dcompiler_47.dll`, the `fh2-mods` and `fh2-radio` folders and a `README.txt`, ready to zip up. GitHub Actions does the same on every push and uploads the result as a build artifact. Pushing a tag like `v1.1.0` also creates a draft release with the zip attached, ready to be published. The version lives in `project(... VERSION x.y.z)` in `CMakeLists.txt`. Bump it before tagging, since the tag build refuses to run if the two don't match, and it's what the mod compares against the latest GitHub release. The code in `common/` is shared with WheresMyBuddy and should stay identical in both repos.
 
 The loader is a `d3dcompiler_47.dll` proxy. Azimuth imports that DLL and Windows looks next to the exe first, so it gets loaded at startup without touching any of Azimuth's own files. Every export forwards to the real one in System32, and all the loader does is load `fh2-mods\*.dll` and log what it did to `fh2-mods\loader.log`.
 

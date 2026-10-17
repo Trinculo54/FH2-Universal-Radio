@@ -69,6 +69,13 @@ away and back to apply immediately).
                     (with a tiny hiccup) far less often than every 3-6 min
   show_metadata=1   show your song title / artist in the radio HUD
 
+  [updates]
+  check=1           0 = don't check GitHub for a newer version
+
+When a newer version is out, the title screen says so after "PRESS (A)
+TO START". It also tells you if the FH2 Mod Loader (d3dcompiler_47.dll)
+is older than the one this mod came with; reinstall the radio to fix that.
+
 
 Troubleshooting
 ~~~~~~~~~~~~~~~

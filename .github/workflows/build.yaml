@@ -42,10 +42,19 @@ jobs:
       - name: Name the build
         id: name
         run: |
+          # The version in CMakeLists.txt is what the mod reports and compares
+          # against GitHub; a release tag has to match it.
+          version=$(sed -n 's/^project([^ ]* VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          echo "CMakeLists.txt version: $version"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF_NAME#[vV]}"
+            if [[ "$tag" != "$version" ]]; then
+              echo "::error::Tag $GITHUB_REF_NAME doesn't match VERSION $version in CMakeLists.txt; bump it first."
+              exit 1
+            fi
             echo "name=FH2-Universal-Radio-${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
-            echo "name=FH2-Universal-Radio-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "name=FH2-Universal-Radio-v${version}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload distribution

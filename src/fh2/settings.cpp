@@ -33,7 +33,12 @@ constexpr const char* kDefaultIni =
     "extend_tracks=1\r\n"
     "\r\n"
     "; Show your song title / artist in the game's radio HUD.\r\n"
-    "show_metadata=1\r\n";
+    "show_metadata=1\r\n"
+    "\r\n"
+    "[updates]\r\n"
+    "; 1 = check GitHub for a newer FH2 Universal Radio (at most every 6 hours)\r\n"
+    "; and say so on the title screen. 0 = never go online for this.\r\n"
+    "check=1\r\n";
 
 int read_int(const std::wstring& ini, const wchar_t* key, int def) {
     return static_cast<int>(GetPrivateProfileIntW(L"takeover", key, def, ini.c_str()));
