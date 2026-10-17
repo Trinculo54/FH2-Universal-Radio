@@ -21,7 +21,7 @@ Install
 1. Close Azimuth.
 2. Copy d3dcompiler_47.dll and the fh2-radio folder next to azimuth.exe.
 3. Start Azimuth and FH2. In Settings > Audio, turn Radio DJ off.
-4. Tune the radio to INNOVATIVE LEISURE (station 7). That station now
+4. Tune the radio to HORIZON PULSE (station 1). That station now
    plays the mod's audio. Every other station stays vanilla.
 5. Open http://localhost:8420 in a browser for the dashboard.
 
@@ -49,7 +49,7 @@ FH2 settings (fh2-radio\fh2.ini)
 Written on first launch; edits apply live (switch the in-game station
 away and back to apply immediately).
 
-  station=7         which station is taken over (1-7, 0 = all of them)
+  station=1         which station is taken over (1-7, 0 = all of them)
                       1 Horizon Pulse     2 Bass Arena       3 Horizon XS
                       4 Radio Levante     5 Hospital Records 6 Ninja Tune
                       7 Innovative Leisure
@@ -67,10 +67,10 @@ Everything is logged to fh2-radio\bridge.log. Useful lines:
 
   [fh2] found FH2 image ...           the mod saw the game start
   [fh2] radio hooks installed ...     the radio is patched
-  [fh2] load #N: track station=7 ...  the game loaded a song; "TAKEOVER"
+  [fh2] load #N: track station=1 ...  the game loaded a song; "TAKEOVER"
                                       means it's playing your audio
 
-No sound on station 7: check the dashboard shows Spotify "playing" and
+No sound on Horizon Pulse: check the dashboard shows Spotify "playing" and
 that you've picked "FH2 Universal Radio" in the Spotify app. If the log
 never says "radio hooks installed", send the log over.
 

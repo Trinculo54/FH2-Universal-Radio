@@ -23,7 +23,7 @@ constexpr const char* kDefaultIni =
     ";   4 Radio Levante      5 Hospital Records  6 Ninja Tune\r\n"
     ";   7 Innovative Leisure\r\n"
     "; 0 = every station plays the mod's audio.\r\n"
-    "station=7\r\n"
+    "station=1\r\n"
     "\r\n"
     "; Silence the DJ and station jingles on the taken-over station.\r\n"
     "mute_dj=1\r\n"
@@ -68,8 +68,8 @@ bool SettingsFile::refresh() {
 
     const std::wstring ini = path_.wstring();
     enabled_.store(read_int(ini, L"enabled", 1) != 0);
-    int st = read_int(ini, L"station", 7);
-    if (st < 0 || st > 9) st = 7;
+    int st = read_int(ini, L"station", 1);
+    if (st < 0 || st > 9) st = 1;
     station_.store(st);
     mute_dj_.store(read_int(ini, L"mute_dj", 1) != 0);
     extend_.store(read_int(ini, L"extend_tracks", 1) != 0);

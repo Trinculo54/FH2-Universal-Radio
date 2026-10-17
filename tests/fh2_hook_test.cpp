@@ -248,7 +248,14 @@ int main(int argc, char** argv) {
     SettingsFile settings{ini};
     settings.ensure_exists();
     CHECK(settings.refresh());
-    CHECK(settings.get().takeover_station == 7);
+    CHECK(settings.get().takeover_station == 1);
+    // The scenarios below take over Innovative Leisure (7).
+    Sleep(1100);
+    {
+        std::ofstream f{ini, std::ios::trunc};
+        f << "[takeover]\nenabled=1\nstation=7\n";
+    }
+    CHECK(settings.refresh() && settings.get().takeover_station == 7);
     StationMap stations;
     if (argc >= 3) CHECK(stations.load(argv[2]));
 

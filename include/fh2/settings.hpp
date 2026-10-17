@@ -13,7 +13,7 @@ namespace fh2 {
 // the game loads).
 struct Settings {
     bool enabled          = true;
-    int takeover_station  = 7; // 1..7, 0 = every station
+    int takeover_station  = 1; // 1..7, 0 = every station
     bool mute_dj          = true;
     bool extend_tracks    = true;
     bool show_metadata    = true;
@@ -35,7 +35,7 @@ private:
     std::filesystem::path path_;
     std::filesystem::file_time_type stamp_{};
     std::atomic<bool> enabled_{true};
-    std::atomic<int> station_{7};
+    std::atomic<int> station_{1};
     std::atomic<bool> mute_dj_{true};
     std::atomic<bool> extend_{true};
     std::atomic<bool> meta_{true};
