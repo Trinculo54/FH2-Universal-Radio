@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 # Bump VERSION before tagging a release (the tag build checks they match).
-project(fh2_universal_radio VERSION 1.4.0 LANGUAGES C CXX RC)
+project(fh2_universal_radio VERSION 1.5.0 LANGUAGES C CXX RC)
 configure_file(cmake/version.h.in ${CMAKE_BINARY_DIR}/generated/fh2_version.h)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -66,6 +66,7 @@ add_library(fh2radio SHARED
     src/fh2/radio_hook.cpp
     src/fh2/control_loop.cpp
     src/fh2/now_playing.cpp
+    src/fh2/platform_link.cpp
     src/http/http_server.cpp
     src/sources/local_file_source.cpp
     src/sources/youtube_music_source.cpp
@@ -124,9 +125,14 @@ if(FH2_TESTS)
         src/fh2/game_image.cpp
         src/fh2/settings.cpp
         src/fh2/radio_hook.cpp
+        src/fh2/platform_link.cpp
         src/log.cpp
         src/ring_buffer.cpp
         src/audio_source_manager.cpp
     )
     target_include_directories(fh2_hook_test PRIVATE include)
+    target_link_libraries(fh2_hook_test PRIVATE fh2mod_api)
+    add_library(radio_shim SHARED tests/platform_shim.cpp)
+    target_link_libraries(radio_shim PRIVATE fh2mod_api)
+    set_target_properties(radio_shim PROPERTIES OUTPUT_NAME RadioShim PREFIX "")
 endif()

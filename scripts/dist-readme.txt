@@ -24,6 +24,7 @@ Install
        d3dcompiler_47.dll               (the FH2 Mod Platform)
        fh2-mods\FH2UniversalRadio.dll   (the radio)
        fh2-radio\                       (dashboard, settings, helpers)
+       LICENSE-MinHook.txt              (for the platform; nothing to do)
 3. Start Azimuth and FH2. In Settings > Audio, turn Radio DJ off.
 4. Tune the radio to HORIZON PULSE (station 1). That station now
    plays the mod's audio. Every other station stays vanilla.

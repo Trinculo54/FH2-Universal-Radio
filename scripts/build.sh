@@ -74,6 +74,8 @@ cp -r "$root/ui/dist"              "$dist/fh2-radio/ui"
 cp "$root/config.example.toml"     "$dist/fh2-radio/config.toml"
 
 cp "$root/scripts/dist-readme.txt" "$dist/README.txt"
+# The platform includes MinHook (BSD 2-Clause), whose notice ships with it.
+cp "$root/platform/third_party/minhook/LICENSE.txt" "$dist/LICENSE-MinHook.txt"
 
 printf '\n\033[32mBuilt + staged in %s\033[0m\n' "$dist"
 (cd "$dist" && find . -type f -printf '  %P\n')
