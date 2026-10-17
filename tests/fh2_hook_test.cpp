@@ -293,9 +293,9 @@ int main(int argc, char** argv) {
     CHECK(c1.sound->length == 0xFFFFFFFFu);
     CHECK(c1.sound->pcmread != nullptr && c1.sound->userdata != nullptr);
     CHECK(out == c1.sound);
-    CHECK(*reinterpret_cast<int32_t*>(il->props + layout::kPropSampleLength) == 4 * 3600 * 1000);
-    CHECK(il->markers[7] == 4 * 3600 * 1000 && il->markers[1] == 227);
-    CHECK(*reinterpret_cast<int32_t*>(il->rs + layout::kStreamStartMs) == 0);
+    CHECK(*reinterpret_cast<int32_t*>(il->props + layout::kPropSampleLength) == 16 * 60 * 1000);
+    CHECK(il->markers[7] == 16 * 60 * 1000 && il->markers[1] == 227);
+    CHECK(*reinterpret_cast<int32_t*>(il->rs + layout::kStreamStartMs) == 123456);
     CHECK(get_str(il->props + layout::kPropDisplayName) ==
           "Bohemian Rhapsody - Remastered 2011 With A Really Long Title");
     CHECK(get_str(il->props + layout::kPropArtist) == "Queen");

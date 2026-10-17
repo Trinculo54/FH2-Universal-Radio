@@ -35,9 +35,12 @@ constexpr int kBytesPerFrame = kChannels * 2;
 constexpr uint32_t kDecodeFrames = 2048; // ~43 ms per read callback
 constexpr uint32_t kSilentBytes  = kSampleRate * kBytesPerFrame / 4; // 250 ms
 
-// 4 h in ms. Stays below 2^24 so the game's float track clock still counts
-// in exact milliseconds.
-constexpr int32_t kLongTrackMs = 4 * 60 * 60 * 1000;
+// Stretched track length. The game keeps every stream within 5 s of the
+// station's clock by seeking the Studio event timeline, so the clock must
+// never run past what the "/Master/Radio/Track" event can seek to. The
+// longest stock track (a DJ mix) is 977656 ms, so 16 min is a proven-safe
+// seek range while still cutting track changes to one every 16 minutes.
+constexpr int32_t kLongTrackMs = 16 * 60 * 1000;
 
 // ---- stream identity -------------------------------------------------------
 // Each substituted stream carries a pointer into this table as its FMOD
@@ -207,6 +210,7 @@ bool apply_timing(std::byte* props, Original& orig) noexcept {
         return false;
     return fh6::seh_call([&] {
         auto* len = reinterpret_cast<int32_t*>(props + layout::kPropSampleLength);
+        if (!orig.timing && *len >= kLongTrackMs) return; // already long enough
         if (!orig.timing) {
             orig.length     = *len;
             orig.markers[0] = begin[layout::kMarkerStingerStart];
@@ -570,8 +574,10 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
 
         // The station clock may ask tryStart to seek the event deep into the
         // (now 4 h) track; our stream is live, so always start at 0.
-        if (rs_ok)
-            fh6::seh_call([&] { *reinterpret_cast<int32_t*>(rs + layout::kStreamStartMs) = 0; });
+        // NB: leave rs+0x28 (the start seek) alone. RadioPlayer reloads any
+        // stream whose timeline is >5 s away from the station clock, so
+        // forcing 0 here makes it reload the track every frame.
+        (void)rs_ok;
 
         if (info.props) {
             std::scoped_lock lk{g_mu};

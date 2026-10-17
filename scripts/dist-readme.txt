@@ -55,8 +55,8 @@ away and back to apply immediately).
                       7 Innovative Leisure
   enabled=1         0 = all stations vanilla
   mute_dj=1         silence the DJ / jingles on that station
-  extend_tracks=1   stop the game ending its "track" every few minutes,
-                    which would otherwise cause a tiny hiccup mid-song
+  extend_tracks=1   stretch the game's "track" to 16 min so it changes
+                    (with a tiny hiccup) far less often than every 3-6 min
   show_metadata=1   show your song title / artist in the radio HUD
 
 
