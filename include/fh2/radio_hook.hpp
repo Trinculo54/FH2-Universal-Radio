@@ -62,6 +62,12 @@ public:
 
     RadioStats& stats() noexcept { return stats_; }
 
+    // Throw away up to `bytes` of buffered PCM, as if a speaker had played
+    // it. Called while the game isn't reading our stream (menus, another
+    // station, loading) so the source -- librespot especially -- keeps
+    // running in real time instead of stalling behind a full buffer.
+    void discard_realtime(std::size_t bytes) noexcept;
+
     // ---- called from the patched game code / FMOD threads ----------------
     uint32_t on_create_sound(void* system, const char* name_or_data, uint32_t mode, void* exinfo,
                              void** out_sound, std::byte* radio_stream) noexcept;

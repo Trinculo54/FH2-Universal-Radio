@@ -199,7 +199,7 @@ void SpotifySource::start_pipe_locked() {
 
     // request debug logs for the player module to intercept Seek events & metadata
     SetEnvironmentVariableW(L"RUST_LOG",
-                            L"librespot_playback::player=debug,librespot_metadata=trace");
+                            L"librespot=info,librespot_playback::player=debug,librespot_metadata=trace");
 
     if (worker_ && worker_->alive()) {
         // spawn the pipeline via worker_client

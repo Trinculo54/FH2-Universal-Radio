@@ -7,6 +7,7 @@
 
 #include <windows.h>
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 
 namespace fh2 {
@@ -22,6 +23,11 @@ constexpr int kInaudibleTicks = 175;
 constexpr int kMetaEveryTicks = 25;     // 500 ms
 constexpr int kHousekeepTicks = 50;     // 1 s
 constexpr auto kImagePoll     = 250ms;
+
+// After this long without the game reading our stream, keep the source
+// moving at real-time speed by discarding audio (see discard_realtime).
+constexpr auto kDrainAfter = 1s;
+constexpr std::size_t kBytesPerMs = 48000 * 4 / 1000; // 48 kHz S16 stereo
 } // namespace
 
 ControlLoop::ControlLoop(fh6::AudioSourceManager& mgr, std::filesystem::path data_dir,
@@ -51,27 +57,44 @@ void ControlLoop::run(const std::stop_token& tok) {
     fh6::log::info("[fh2] waiting for Forza Horizon 2 to start...");
     GameImage img{};
     int attempts = 0;
+    auto next_try  = std::chrono::steady_clock::now();
+    auto last_tick = next_try;
     while (!tok.stop_requested() && !hook.installed()) {
+        // Nothing reads the ring until the hooks are in, so pump and discard
+        // at real-time speed: a Spotify session connected from the launcher
+        // keeps playing instead of sitting frozen.
+        const auto now = std::chrono::steady_clock::now();
+        const auto ms  = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_tick).count();
+        last_tick      = now;
         mgr_.pump_once();
-        if (!img.valid()) {
-            if (auto found = find_game_image()) {
-                img = *found;
-                fh6::log::info("[fh2] found FH2 image @0x{:X}", reinterpret_cast<uintptr_t>(img.base));
+        {
+            std::byte scratch[4096];
+            std::size_t bytes = static_cast<std::size_t>(std::clamp<long long>(ms, 0, 200)) * kBytesPerMs;
+            while (bytes) {
+                const std::size_t n = mgr_.ring().read(scratch, std::min(bytes, sizeof(scratch)));
+                if (!n) break;
+                bytes -= n;
             }
         }
-        if (img.valid()) {
-            // Retry quietly: the sections may still be getting copied in.
-            if (hook.install(img, mgr_, settings_, stations_)) break;
-            if (++attempts == 240) {
-                fh6::log::error("[fh2] gave up patching after 60 s -- is this the supported FH2 "
-                                "build (forza_durango_release_final.exe, 2015-11-24)?");
+
+        if (now >= next_try) {
+            next_try = now + (attempts >= 240 ? std::chrono::milliseconds{5s} : std::chrono::milliseconds{kImagePoll});
+            if (!img.valid()) {
+                if (auto found = find_game_image()) {
+                    img = *found;
+                    fh6::log::info("[fh2] found FH2 image @0x{:X}", reinterpret_cast<uintptr_t>(img.base));
+                }
             }
-            if (attempts >= 240) {
-                std::this_thread::sleep_for(5s);
-                continue;
+            if (img.valid()) {
+                // Retry quietly: the sections may still be getting copied in.
+                if (hook.install(img, mgr_, settings_, stations_)) break;
+                if (++attempts == 240) {
+                    fh6::log::error("[fh2] gave up patching after 60 s -- is this the supported FH2 "
+                                    "build (forza_durango_release_final.exe, 2015-11-24)?");
+                }
             }
         }
-        std::this_thread::sleep_for(kImagePoll);
+        std::this_thread::sleep_for(kTick);
     }
     if (tok.stop_requested()) return;
 
@@ -83,6 +106,9 @@ void ControlLoop::run(const std::stop_token& tok) {
     bool primed            = false;
     fh6::IAudioSource* tracked = nullptr;
     int tick               = 0;
+    auto last_read_change  = std::chrono::steady_clock::now();
+    auto last_tick_time    = last_read_change;
+    bool draining          = false;
 
     auto next = std::chrono::steady_clock::now();
     while (!tok.stop_requested()) {
@@ -130,6 +156,23 @@ void ControlLoop::run(const std::stop_token& tok) {
             primed     = false;
             audible    = true;
         }
+        // Real-time drain while the game isn't listening. librespot's pipe
+        // output has no clock of its own -- it plays exactly as fast as we
+        // read -- so without this it freezes mid-song whenever the radio is
+        // paused or on another station, and Spotify drops the device.
+        if (reads != prev_reads) last_read_change = now;
+        const bool idle = now - last_read_change >= kDrainAfter;
+        if (idle != draining) {
+            draining = idle;
+            fh6::log::info("[fh2] game {} reading the radio stream -- {}",
+                           idle ? "stopped" : "resumed",
+                           idle ? "keeping the source running in real time" : "normal playback");
+        }
+        if (idle) {
+            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_tick_time).count();
+            hook.discard_realtime(static_cast<std::size_t>(std::clamp<long long>(ms, 0, 200)) * kBytesPerMs);
+        }
+        last_tick_time = now;
         prev_reads = reads;
 
         // Now-playing text for the radio HUD.

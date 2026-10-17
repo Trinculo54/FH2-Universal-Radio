@@ -95,8 +95,27 @@ HANDLE open_nul(DWORD access) {
     return h == INVALID_HANDLE_VALUE ? nullptr : h;
 }
 
+// Helper-process output (librespot, ffmpeg, yt-dlp). Lives in the mod's
+// fh2-radio folder so it's easy to find and send: the DLL sits next to
+// azimuth.exe (-> fh2-radio\helpers.log), the worker exe sits inside
+// fh2-radio already. Trimmed at first use each run if it grows past 4 MB.
 std::filesystem::path stderr_log_path() {
-    return std::filesystem::temp_directory_path() / "fh6-stderr.log";
+    static const std::filesystem::path path = [] {
+        namespace fs = std::filesystem;
+        HMODULE self = nullptr;
+        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(&stderr_log_path), &self);
+        wchar_t buf[MAX_PATH]{};
+        const DWORD n = GetModuleFileNameW(self, buf, MAX_PATH);
+        fs::path dir  = (n && n < MAX_PATH) ? fs::path{buf}.parent_path() : fs::temp_directory_path();
+        std::error_code ec;
+        if (fs::is_directory(dir / "fh2-radio", ec)) dir /= "fh2-radio";
+        fs::path p = dir / "helpers.log";
+        if (fs::file_size(p, ec) > (4u << 20) && !ec) fs::remove(p, ec);
+        return p;
+    }();
+    return path;
 }
 
 HANDLE open_stderr_log() {

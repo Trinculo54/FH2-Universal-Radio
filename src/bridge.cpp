@@ -151,7 +151,7 @@ void run_bridge(HMODULE self) noexcept {
     {
         auto worker_exe = data_dir / "fh2-radio-worker.exe";
 
-        if (worker->start(worker_exe, {{L"RUST_LOG", L"librespot_playback::player=debug,librespot_metadata=trace"}})) {
+        if (worker->start(worker_exe, {{L"RUST_LOG", L"librespot=info,librespot_playback::player=debug,librespot_metadata=trace"}})) {
             log::info("[bridge] worker process started");
         } else {
             log::warn("[bridge] worker process unavailable -- falling back to direct spawn");

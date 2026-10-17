@@ -332,6 +332,16 @@ int main(int argc, char** argv) {
     CHECK(read(c1.sound, outbuf.data(), 512) == 0);
     CHECK(outbuf[0] == 0 && hook.stats().underruns.load() == under0 + 1);
 
+    // Real-time discard (game not listening) eats from the ring.
+    {
+        std::vector<int16_t> fill(4096, 7);
+        mgr.ring().drain();
+        mgr.ring().write(fill.data(), 8192);
+        hook.discard_realtime(4096 + 2); // rounded down to whole frames
+        CHECK(mgr.ring().readable() == 4096);
+        mgr.ring().drain();
+    }
+
     // Live metadata update (in place, no allocation from this thread).
     hook.push_metadata("Don't Stop Me Now", "Queen");
     CHECK(get_str(il->props + layout::kPropDisplayName) == "Don't Stop Me Now");

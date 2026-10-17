@@ -54,6 +54,11 @@ constexpr std::size_t kTagCount = 256;
 StreamTag g_tags[kTagCount];
 StreamTag g_silent_tag;
 std::atomic<uint64_t> g_next_gen{1};
+
+// The ring is single-consumer. FMOD's stream thread and the control loop's
+// real-time discard both read from it, so they take turns through this flag;
+// whoever loses a race simply skips one chunk (silence / no discard).
+std::atomic_flag g_ring_reader = ATOMIC_FLAG_INIT;
 std::atomic<uint64_t> g_active_gen{0};
 
 bool is_track_tag(const void* ud) noexcept {
@@ -625,6 +630,19 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
     }
 }
 
+void RadioHook::discard_realtime(std::size_t bytes) noexcept {
+    if (!mgr_ || !bytes) return;
+    bytes &= ~static_cast<std::size_t>(kBytesPerFrame - 1);
+    if (g_ring_reader.test_and_set(std::memory_order_acquire)) return;
+    std::byte scratch[4096];
+    while (bytes) {
+        const std::size_t n = mgr_->ring().read(scratch, std::min(bytes, sizeof(scratch)));
+        if (!n) break;
+        bytes -= n;
+    }
+    g_ring_reader.clear(std::memory_order_release);
+}
+
 uint32_t RadioHook::on_get_sub_sound(void* sound, int index, void** out) noexcept {
     void* ud = nullptr;
     if (sound && g_get_user_data(sound, &ud) == fmod::kOk && is_our_tag(ud)) {
@@ -653,8 +671,12 @@ uint32_t RadioHook::on_pcm_read(void* sound, void* data, uint32_t len) noexcept 
     stats_.last_len.store(len, std::memory_order_relaxed);
     stats_.last_read_ms.store(GetTickCount64(), std::memory_order_relaxed);
 
-    const uint32_t want   = len & ~static_cast<uint32_t>(kBytesPerFrame - 1);
-    const std::size_t got = mgr_->ring().read(data, want);
+    const uint32_t want = len & ~static_cast<uint32_t>(kBytesPerFrame - 1);
+    std::size_t got     = 0;
+    if (!g_ring_reader.test_and_set(std::memory_order_acquire)) {
+        got = mgr_->ring().read(data, want);
+        g_ring_reader.clear(std::memory_order_release);
+    }
 
     const float g = std::clamp(gain(), 0.0f, 1.0f);
     if (g < 0.9995f) {
