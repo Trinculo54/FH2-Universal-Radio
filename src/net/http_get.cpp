@@ -58,7 +58,7 @@ std::optional<std::string> http_get(std::string_view url, std::string_view extra
         requestTarget.append(urlComp.lpszExtraInfo, urlComp.dwExtraInfoLength);
     }
 
-    HINTERNET hSession = WinHttpOpen(L"FH6 Universal Radio/1.0", 
+    HINTERNET hSession = WinHttpOpen(L"FH2 Universal Radio/1.0", 
                                      WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                      WINHTTP_NO_PROXY_NAME, 
                                      WINHTTP_NO_PROXY_BYPASS, 0);

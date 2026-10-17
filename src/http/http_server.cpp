@@ -617,7 +617,7 @@ struct HttpServer::Impl {
     json build_state() const {
         auto* a = mgr.active();
         return json{
-            {"game", json{{"attached", true}, {"injector_ready", true}}},
+            {"game", json{{"attached", bridge.attached()}, {"injector_ready", bridge.attached()}}},
             {"audio",
              json{
                  {"active", bridge.mode() == fmod_bridge::DSPMode::pcm},

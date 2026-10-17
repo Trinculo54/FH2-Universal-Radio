@@ -1,126 +1,85 @@
-FH6 Universal Radio
+FH2 Universal Radio
 ===================
 
-Thanks for grabbing this. It's a free, open-source mod that drops a
-brand new station into Forza Horizon 6's radio dial. You feed it audio
-from a folder of music files on your PC, from online radio stations, from
-Spotify, from any YouTube / YouTube Music link, from a Jellyfin server, or
-from any other Windows app (Deezer, a browser tab...), and the game treats the result
-like every other station: it ducks for menus, follows your in-game
-volume slider, and fades on the loading screen.
+A Forza Horizon 2 (Azimuth) port of FH6 Universal Radio by g0ldyy and
+contributors (GPLv3, https://github.com/g0ldyy/fh6-universal-radio).
+
+It takes over one of FH2's radio stations and plays your own audio on it:
+Spotify (Spotify Connect), a folder of music files, online radio, YouTube
+Music, Jellyfin, or any Windows app. The game treats it like a normal
+station -- it ducks in menus, pauses with the game, follows the in-game
+radio volume, and shows your song title/artist in the radio HUD.
+
+Supported build: the Xbox One FH2 (forza_durango_release_final.exe,
+24 Nov 2015) running under Azimuth. Works alongside Forza Horizon 2 Extra
+Options (that mod uses winmm.dll; this one uses d3dcompiler_47.dll).
 
 
-Getting it running
-~~~~~~~~~~~~~~~~~~
+Install
+~~~~~~~
 
-Prefer a video? Watch the installation guide on YouTube:
-https://www.youtube.com/watch?v=9Uwy3pDf4SQ
+1. Close Azimuth.
+2. Copy d3dcompiler_47.dll and the fh2-radio folder next to azimuth.exe.
+3. Start Azimuth and FH2. In Settings > Audio, turn Radio DJ off.
+4. Tune the radio to INNOVATIVE LEISURE (station 7). That station now
+   plays the mod's audio. Every other station stays vanilla.
+5. Open http://localhost:8420 in a browser for the dashboard.
 
-Make sure FH6 isn't open first. Then drop the contents of this archive
-straight into the folder that contains forzahorizon6.exe. Depending on
-where you installed the game, that'll look like one of:
-
-    Steam      ->  ...\steamapps\common\ForzaHorizon6
-    Xbox app   ->  ...\XboxGames\Forza Horizon 6\Content
-
-Let Windows overwrite when it asks. Heads-up: some antivirus tools dunk
-on the bundled version.dll because of how the mod hooks into the game.
-If yours yeets the file, add the FH6 folder to its exclusions list
-and re-extract.
-
-Once the files are in place, launch the game and head into
-Settings > Audio. Two switches matter:
-
-    Streamer Mode  ->  ON     (the new station only shows up with
-                                this enabled)
-    Radio DJ       ->  OFF    (otherwise the in-game DJ chimes in
-                                over your tracks)
-
-Now cycle the radio stations in-game until you land on the new one.
-The mod's audio only goes out while that station is the active one.
-Flip to another station and it stops broadcasting.
+Windows Firewall may ask about azimuth.exe / librespot.exe the first time:
+allow private networks so your phone can see the Spotify device.
 
 
-Configuring it from your browser
+Spotify
+~~~~~~~
+
+Spotify is the default source. On first launch the mod downloads
+librespot and ffmpeg into fh2-radio\bin (takes a few seconds). Then, on
+your phone or PC (same Wi-Fi), open Spotify, tap the Devices icon and pick
+"FH2 Universal Radio". Requires Spotify Premium (a Spotify Connect rule).
+Credentials are cached in fh2-radio\spotify_cache, so it reconnects next
+time.
+
+You control playback from the Spotify app as usual; skipping, pausing and
+playlists all work.
+
+
+FH2 settings (fh2-radio\fh2.ini)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Everything else is driven from a web dashboard the mod hosts
-locally. With the game running, open this URL in any browser on the
-same machine:
+Written on first launch; edits apply live (switch the in-game station
+away and back to apply immediately).
 
-    http://localhost:8420
-
-From another device on the same network, use your PC's local IP
-instead (e.g. http://192.168.1.42:8420). Run `ipconfig` in a Command
-Prompt to find it.
-
-From there:
-
-  * Local files: build "stations" from one or more folders of MP3, FLAC,
-    WAV, OGG, M4A, AAC, OPUS, M3U, M3U8 or WMA tracks. Subfolders are
-    scanned too, and you can uncheck the ones you don't want. Pick a play
-    order (shuffle / albums / name / folder), a repeat mode, and browse or
-    search the queue.
-
-  * Online radio: search a built-in directory of thousands of internet
-    stations by name, genre, or country and tune one in a click, or paste
-    a direct stream URL. Save favourites with their logos; the dashboard
-    also keeps a "recently played" list.
-
-  * YouTube Music: paste a video URL, a playlist, or a YT Music
-    link.
-
-    For age-gated or private content, export your browser's cookies
-    as a Netscape cookies.txt (use an extension like "Get cookies.txt
-    LOCALLY") and load that from the same panel.
-
-  * Jellyfin: stream playlists from your own Jellyfin server.
-    Configure the server URL, API key, user ID, and playlist ID
-    under Settings > Jellyfin.
-
-  * External audio: capture any Windows playback device and pipe a
-    live app (Deezer, a browser tab...) into the radio. The capture
-    is a loopback of whatever the device plays, so route the app to a
-    virtual audio cable (e.g. VB-Audio Virtual Cable, set to 48000 Hz)
-    and pick that cable as the capture device, otherwise you hear the
-    app directly instead of through the radio.
-
-  * Spotify Connect: enable Spotify under Settings, then pick
-    "FH6 Universal Radio" from the Devices list in your phone's or
-    desktop's Spotify app to stream to the game. An old Spotify
-    Premium account is required by Spotify Connect.
-
-A handful of in-game extras live under Settings in the dashboard:
-
-  * Race start action: on race begin, advance to next track, restart
-    the current one, or leave it alone.
-  * Quick station skip: tune the radio knob away and back within 1s
-    to skip the current track.
-  * Loudness normalization for consistent volume across tracks.
-  * 5-band equalizer (60 Hz / 250 Hz / 1 kHz / 4 kHz / 12 kHz peaking
-    biquads, +/-6 dB per band, applied producer-side at 48 kHz before
-    audio hits the game).
+  station=7         which station is taken over (1-7, 0 = all of them)
+                      1 Horizon Pulse     2 Bass Arena       3 Horizon XS
+                      4 Radio Levante     5 Hospital Records 6 Ninja Tune
+                      7 Innovative Leisure
+  enabled=1         0 = all stations vanilla
+  mute_dj=1         silence the DJ / jingles on that station
+  extend_tracks=1   stop the game ending its "track" every few minutes,
+                    which would otherwise cause a tiny hiccup mid-song
+  show_metadata=1   show your song title / artist in the radio HUD
 
 
-Pulling it back out
-~~~~~~~~~~~~~~~~~~~
+Troubleshooting
+~~~~~~~~~~~~~~~
 
-Two things to remove from the FH6 install folder: version.dll, and the
-fh6-radio/ folder sitting next to it. After that, hit "Verify integrity
-of game files" (Steam) or "Repair" (Xbox app / MS Store) and the
-patched game assets get pulled back to vanilla.
+Everything is logged to fh2-radio\bridge.log. Useful lines:
+
+  [fh2] found FH2 image ...           the mod saw the game start
+  [fh2] radio hooks installed ...     the radio is patched
+  [fh2] load #N: track station=7 ...  the game loaded a song; "TAKEOVER"
+                                      means it's playing your audio
+
+No sound on station 7: check the dashboard shows Spotify "playing" and
+that you've picked "FH2 Universal Radio" in the Spotify app. If the log
+never says "radio hooks installed", send the log over.
+
+Uninstall: delete d3dcompiler_47.dll and the fh2-radio folder.
 
 
-About the project
-~~~~~~~~~~~~~~~~~
+License
+~~~~~~~
 
-This mod is a hobby project released under GPLv3. The source lives at
-github.com/g0ldyy/fh6-universal-radio. Bug reports, feature ideas, and
-PRs are all welcome over there. If you want to chip in financially,
-the README on the repo has GitHub Sponsors and Ko-fi links.
-
-Unofficial fan project. Nothing here is affiliated with, endorsed by,
-or connected to Turn 10 Studios, Playground Games, Xbox Game Studios,
-Microsoft, Google, YouTube, or Jellyfin (Jellyfin LLC). Forza Horizon,
-Forza Motorsport, and all other names dropped above belong to their
-respective owners. Provided as-is, no warranty, use at your own risk.
+GPLv3, same as FH6 Universal Radio. Source is included alongside this
+build. Unofficial fan-made mod; not affiliated with Playground Games,
+Turn 10, Microsoft, or Spotify.

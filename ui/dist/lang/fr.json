@@ -5,7 +5,7 @@
     "author": "su apt install Kuma"
   },
 
-  "brand.title": "FH6 Universal Radio",
+  "brand.title": "FH2 Universal Radio",
   "status.connecting": "Connexion…",
   "status.ok": "Connecté",
   "status.error": "Erreur de connexion",
@@ -80,7 +80,7 @@
   "source.auth.needs_auth": "Auth. requise",
   "source.auth.error": "Erreur",
 
-  "source.auth_instructions.spotify": "1. Assurez-vous que votre PC et votre téléphone sont sur le même réseau Wi-Fi.\n2. Ouvrez l'application Spotify sur votre téléphone.\n3. Appuyez sur l'icône 'Appareils' et sélectionnez 'FH6 Universal Radio'.\nUne fois connecté, les identifiants seront automatiquement sauvegardés dans le dossier de cache.",
+  "source.auth_instructions.spotify": "1. Assurez-vous que votre PC et votre téléphone sont sur le même réseau Wi-Fi.\n2. Ouvrez l'application Spotify sur votre téléphone.\n3. Appuyez sur l'icône 'Appareils' et sélectionnez 'FH2 Universal Radio'.\nUne fois connecté, les identifiants seront automatiquement sauvegardés dans le dossier de cache.",
   "source.auth_instructions.local_files": "Ajoutez un dossier de musique à cette station dans la carte Fichiers locaux, puis enregistrez.",
 
   "hotkeys.title": "Raccourcis globaux",

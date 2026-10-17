@@ -1,4 +1,6 @@
-# Example config, copied to `<game>/fh6-radio/config.toml` on first install.
+# Example config, copied to `<Azimuth folder>/fh2-radio/config.toml` on first install.
+# FH2-specific settings (which in-game station is taken over, DJ muting, ...)
+# live in fh2-radio/fh2.ini, written on first launch.
 # Everything is editable from the dashboard; you only need to touch this file
 # if you prefer hand edits. Windows paths should use TOML literal strings
 # (single quotes) so backslashes pass through verbatim:
@@ -8,9 +10,9 @@
 [general]
 port              = 8420
 ring_buffer_mb    = 4
-default_source    = "online_radio"    # local_files | online_radio | youtube_music | jellyfin | external_audio | spotify
+default_source    = "spotify"         # local_files | online_radio | youtube_music | jellyfin | external_audio | spotify
 fallback_source   = "local_files"
-ffmpeg_path       = ''                # blank = auto-download to fh6-radio/bin (else `ffmpeg` on PATH); shared by all sources
+ffmpeg_path       = ''                # blank = auto-download to fh2-radio/bin (else `ffmpeg` on PATH); shared by all sources
 
 [local_files]
 enabled            = false
@@ -32,7 +34,7 @@ repeat    = "all"                      # "all" | "one" | "off"
 [youtube_music]
 enabled            = false
 cookies_path       = ''                # optional Netscape cookies.txt
-yt_dlp_path        = ''                # blank = auto-download to fh6-radio/bin (else `yt-dlp` on PATH)
+yt_dlp_path        = ''                # blank = auto-download to fh2-radio/bin (else `yt-dlp` on PATH)
 active_station     = ""     # which station is currently active
 shuffle            = true
 
@@ -61,8 +63,8 @@ endpoint_id = ''
 media_session_id = ''
 
 [spotify]
-enabled            = false
-librespot_path     = ''                # blank = auto-download to fh6-radio/bin (else `librespot` on PATH)
+enabled            = true
+librespot_path     = ''                # blank = auto-download to fh2-radio/bin (else `librespot` on PATH)
 cache_dir          = 'spotify_cache'   # folder to save the Spotify Connect auth data
 
 [online_radio]

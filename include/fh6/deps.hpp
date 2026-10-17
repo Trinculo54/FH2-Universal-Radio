@@ -13,8 +13,8 @@
 namespace fh6 {
 
 // Order doubles as the slot index.
-enum class Tool { ffmpeg, yt_dlp, librespot, texconv };
-constexpr std::size_t kToolCount = 4;
+enum class Tool { ffmpeg, yt_dlp, librespot };
+constexpr std::size_t kToolCount = 3;
 
 struct DependencyStatus {
     std::string name;

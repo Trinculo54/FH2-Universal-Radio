@@ -8,3 +8,4 @@ include/stb
 
 # Dependency directories
 node_modules/
+build-test/

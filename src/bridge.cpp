@@ -1,5 +1,7 @@
-// Bridge entry point. Wires up config, sources, the FMOD DSP, and the HTTP
-// dashboard, then parks the thread the DLL spawned us on.
+// Bridge entry point. Wires up config, sources, the FH2 radio hooks, and the
+// HTTP dashboard, then parks the thread the DLL spawned us on.
+//
+// FH2 port of FH6 Universal Radio (GPLv3, github.com/g0ldyy/fh6-universal-radio).
 
 #include "fh6/log.hpp"
 #include "fh6/config.hpp"
@@ -7,9 +9,7 @@
 #include "fh6/deps.hpp"
 #include "fh6/audio_source_manager.hpp"
 #include "fh6/fmod/dsp_bridge.hpp"
-#include "fh6/fmod/dsp_control_loop.hpp"
-#include "fh6/fmod/pe_image.hpp"
-#include "fh6/fmod/texture_injector.hpp"
+#include "fh2/control_loop.hpp"
 #include "fh6/http/http_server.hpp"
 #include "fh6/sources/local_file_source.hpp"
 #include "fh6/sources/external_audio_source.hpp"
@@ -18,7 +18,6 @@
 #include "fh6/sources/spotify_source.hpp"
 #include "fh6/worker/worker_client.hpp"
 #include "fh6/sources/online_radio_source.hpp"
-#include "fh6/sources/vanilla_radio_source.hpp"
 
 #include <windows.h>
 #include <array>
@@ -50,9 +49,11 @@ bool host_is_game(const std::filesystem::path& dll_dir) {
     std::error_code ec;
     if (!std::filesystem::equivalent(exe.parent_path(), dll_dir, ec)) return false;
 
+    // Azimuth hosts the Durango exe inside azimuth.exe; Mezcal runs the
+    // game exe directly.
     std::wstring name = exe.filename().wstring();
     for (wchar_t& c : name) c = static_cast<wchar_t>(std::towlower(c));
-    return name != L"gamelaunchhelper.exe";
+    return name == L"azimuth.exe" || name == L"forza_durango_release_final.exe";
 }
 
 SpotifyConfig anchor_spotify(SpotifyConfig sp, const std::filesystem::path& data_dir) {
@@ -67,12 +68,10 @@ Config with_resolved_bins(Config c, const DependencyManager& deps) {
     c.general.ffmpeg_path       = deps.resolve(Tool::ffmpeg, c.general.ffmpeg_path);
     c.youtube_music.yt_dlp_path = deps.resolve(Tool::yt_dlp, c.youtube_music.yt_dlp_path);
     c.spotify.librespot_path    = deps.resolve(Tool::librespot, c.spotify.librespot_path);
-    std::string texconv_path    = deps.resolve(Tool::texconv, "").string();
 
     log::info("[bridge] Resolved ffmpeg path to: {}", c.general.ffmpeg_path.string());
     log::info("[bridge] Resolved yt-dlp path to: {}", c.youtube_music.yt_dlp_path.string());
     log::info("[bridge] Resolved librespot path to: {}", c.spotify.librespot_path.string());
-    log::info("[bridge] Resolved texconv path to: {}", texconv_path);
     return c;
 }
 
@@ -118,18 +117,18 @@ void run_bridge(HMODULE self) noexcept {
     const auto dir = module_directory(self);
     if (!host_is_game(dir)) return; // never spawn a bridge outside the game itself
 
-    if (HANDLE guard = CreateMutexW(nullptr, TRUE, L"Local\\fh6-universal-radio-bridge");
+    if (HANDLE guard = CreateMutexW(nullptr, TRUE, L"Local\\fh2-universal-radio-bridge");
         guard && GetLastError() == ERROR_ALREADY_EXISTS) {
         CloseHandle(guard);
         return;
     }
 
-    const auto data_dir = dir / "fh6-radio";
+    const auto data_dir = dir / "fh2-radio";
     std::error_code ec;
     std::filesystem::create_directories(data_dir, ec);
 
     log::init(data_dir / "bridge.log");
-    log::info("[bridge] FH6 Universal Radio starting; data_dir={}", data_dir.string());
+    log::info("[bridge] FH2 Universal Radio starting; data_dir={}", data_dir.string());
 
     const auto ui_dir = data_dir / "ui";
     if (!verify_ui_credits(ui_dir)) {
@@ -140,37 +139,20 @@ void run_bridge(HMODULE self) noexcept {
     ConfigStore store{data_dir / "config.toml", load_config(data_dir / "config.toml")};
     auto cfg = store.snapshot();
 
-    auto img = fmod_bridge::parse(reinterpret_cast<std::byte*>(GetModuleHandleW(nullptr)));
-    if (!img.valid()) {
-        log::error("[bridge] failed to parse host PE image; aborting");
-        return;
-    }
-    fmod_bridge::FMODFns fns;
-    if (!fmod_bridge::resolve_fmod_signatures(img, fns)) {
-        log::warn("[bridge] some FMOD signatures unresolved -- DSP injection disabled");
-    }
-
     const std::size_t ring_bytes = static_cast<std::size_t>(cfg.general.ring_buffer_mb) << 20;
     AudioSourceManager mgr{ring_bytes};
 
     DependencyManager deps{data_dir / "bin"};
-
-    TextureInjector::instance().set_deps(&deps);
-    TextureInjector::instance().set_config_store(&store);
 
     // Worker process: delegates CreateProcess calls to a small external exe
     // so the fork() Wine performs is cheap (~5 MB) instead of copying the
     // game's multi-GB page table.  Falls back to direct spawn if absent.
     auto worker = std::make_shared<worker::WorkerClient>();
     {
-        auto worker_exe = data_dir / "fh6-radio-worker.exe";
-        if (!std::filesystem::exists(worker_exe))
-            worker_exe = dir / "fh6-radio" / "fh6-radio-worker.exe";
-        
+        auto worker_exe = data_dir / "fh2-radio-worker.exe";
+
         if (worker->start(worker_exe, {{L"RUST_LOG", L"librespot_playback::player=debug,librespot_metadata=trace"}})) {
             log::info("[bridge] worker process started");
-
-            TextureInjector::instance().set_worker_client(worker);
         } else {
             log::warn("[bridge] worker process unavailable -- falling back to direct spawn");
         }
@@ -223,12 +205,6 @@ void run_bridge(HMODULE self) noexcept {
         } else if (!c.spotify.enabled && mgr.find("spotify")) {
             mgr.unregister_source("spotify");
         }
-        if (c.vanilla_radio.enabled && !mgr.find("vanilla_radio")) {
-            auto src = std::make_unique<sources::VanillaRadioSource>();
-            if (src->initialize()) mgr.register_source(std::move(src));
-        } else if (!c.vanilla_radio.enabled && mgr.find("vanilla_radio")) {
-            mgr.unregister_source("vanilla_radio");
-        }
     };
 
     sync_sources(with_resolved_bins(cfg, deps));
@@ -249,55 +225,11 @@ void run_bridge(HMODULE self) noexcept {
         }
     }
 
-    fmod_bridge::DSPBridge bridge{mgr, fns};
+    fmod_bridge::DSPBridge bridge{mgr};
     bridge.set_gain(cfg.audio.output_gain);
-    bridge.set_force_stereo_audio(cfg.playback.force_stereo_audio);
 
-    // cycle the playlist for whichever source is currently active
-    auto cycle_station = [&store, &mgr]() -> bool {
-        bool changed = false;
-        store.patch([&mgr, &changed](Config& c) {
-            auto* active = mgr.active();
-            if (!active) return;
-            auto name = active->name();
-            
-            if (name == "local_files" && c.local_files.stations.size() > 1) {
-                size_t idx = 0;
-                for (size_t i = 0; i < c.local_files.stations.size(); ++i) {
-                    if (c.local_files.stations[i].name == c.local_files.active_station) { idx = i; break; }
-                }
-                c.local_files.active_station = c.local_files.stations[(idx + 1) % c.local_files.stations.size()].name;
-                changed = true;
-            }
-            else if (name == "youtube_music" && c.youtube_music.stations.size() > 1) {
-                size_t idx = 0;
-                for (size_t i = 0; i < c.youtube_music.stations.size(); ++i) {
-                    if (c.youtube_music.stations[i].name == c.youtube_music.active_station) { idx = i; break; }
-                }
-                c.youtube_music.active_station = c.youtube_music.stations[(idx + 1) % c.youtube_music.stations.size()].name;
-                changed = true;
-            }
-            else if (name == "jellyfin" && c.jellyfin.stations.size() > 1) {
-                size_t idx = 0;
-                for (size_t i = 0; i < c.jellyfin.stations.size(); ++i) {
-                    if (c.jellyfin.stations[i].name == c.jellyfin.active_station) { idx = i; break; }
-                }
-                c.jellyfin.active_station = c.jellyfin.stations[(idx + 1) % c.jellyfin.stations.size()].name;
-                changed = true;
-            }
-            else if (name == "online_radio" && c.online_radio.stations.size() > 1) {
-                c.online_radio.default_station_index = (c.online_radio.default_station_index + 1) % c.online_radio.stations.size();
-                changed = true;
-            }
-        });
-        return changed;
-    };
-
-    std::unique_ptr<fmod_bridge::ControlLoop> ctrl;
-    if (fns.ready()) {
-        ctrl = std::make_unique<fmod_bridge::ControlLoop>(bridge, img, cfg.playback,
-                                                          cfg.audio.output_gain, cycle_station);
-    }
+    // Waits for Azimuth to map FH2, patches the radio, then pumps audio.
+    auto ctrl = std::make_unique<fh2::ControlLoop>(mgr, data_dir, dir, cfg.audio.output_gain);
 
     for (auto* s : mgr.sources_snapshot()) s->set_playback_options(cfg.playback);
 
@@ -321,7 +253,6 @@ void run_bridge(HMODULE self) noexcept {
         // Push the gain to both: the control loop's ramper otherwise snaps
         // the bridge value back to its own cached target on the next tick.
         bridge.set_gain(c.audio.output_gain);
-        bridge.set_force_stereo_audio(c.playback.force_stereo_audio);
         if (ctrl_ptr) ctrl_ptr->set_configured_gain(c.audio.output_gain);
         if (auto* local = dynamic_cast<sources::LocalFileSource*>(mgr.find("local_files"))) {
             local->set_ffmpeg_path(c.general.ffmpeg_path);
@@ -362,7 +293,6 @@ void run_bridge(HMODULE self) noexcept {
         }
 
         for (auto* s : mgr.sources_snapshot()) s->set_playback_options(c.playback);
-        if (ctrl_ptr) ctrl_ptr->push_playback_options(c.playback);
     };
     store.on_change(apply_config);
 

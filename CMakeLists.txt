@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(fh6_universal_radio LANGUAGES C CXX)
+project(fh2_universal_radio LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -42,7 +42,8 @@ else()
     add_link_options(-static)
 endif()
 
-add_library(version SHARED
+# The proxy DLL: d3dcompiler_47.dll, dropped next to azimuth.exe.
+add_library(fh2radio SHARED
     src/proxy/dll_main.cpp
     src/bridge.cpp
     src/log.cpp
@@ -54,13 +55,10 @@ add_library(version SHARED
     src/subprocess.cpp
     src/net/http_get.cpp
     src/audio_source_manager.cpp
-    src/fmod/pe_image.cpp
-    src/fmod/sig_scanner.cpp
-    src/fmod/radio_discovery.cpp
-    src/fmod/dsp_bridge.cpp
-    src/fmod/dsp_control_loop.cpp
-    src/fmod/game_state_probe.cpp
-    src/fmod/metadata_injector.cpp
+    src/fh2/game_image.cpp
+    src/fh2/settings.cpp
+    src/fh2/radio_hook.cpp
+    src/fh2/control_loop.cpp
     src/http/http_server.cpp
     src/sources/local_file_source.cpp
     src/sources/youtube_music_source.cpp
@@ -72,26 +70,25 @@ add_library(version SHARED
     src/sources/online_radio_source.cpp
 )
 
-# MSVC carries the forwarders via pragmas in dll_main.cpp because its .def
+# MSVC carries the forwarders via pragmas (msvc_exports.inc) because its .def
 # parser rejects absolute paths in forwarder targets; MinGW takes the .def.
 if(NOT MSVC)
-    target_sources(version PRIVATE src/proxy/version.def)
+    target_sources(fh2radio PRIVATE src/proxy/d3dcompiler_47.def)
 endif()
 
-target_include_directories(version PRIVATE
+target_include_directories(fh2radio PRIVATE
     include
+    src/proxy
     third_party/nlohmann
     third_party/toml11
     third_party/miniaudio
     third_party/stb
-    third_party/minhook/include
-    third_party/kiero
 )
 
-target_link_libraries(version PRIVATE ws2_32 bcrypt psapi winhttp ole32 uuid ksuser runtimeobject)
+target_link_libraries(fh2radio PRIVATE ws2_32 bcrypt psapi winhttp ole32 uuid ksuser runtimeobject)
 
-set_target_properties(version PROPERTIES
-    OUTPUT_NAME version
+set_target_properties(fh2radio PROPERTIES
+    OUTPUT_NAME d3dcompiler_47
     PREFIX ""
 )
 
@@ -104,16 +101,6 @@ add_executable(fh6-radio-worker
     src/net/http_get.cpp
 )
 
-target_sources(version PRIVATE
-    third_party/minhook/src/hook.c
-    third_party/minhook/src/trampoline.c
-    third_party/minhook/src/buffer.c
-    third_party/minhook/src/hde/hde64.c
-    third_party/minhook/src/hde/hde32.c
-    third_party/kiero/kiero.cpp
-    src/fmod/texture_injector.cpp
-)
-
 target_include_directories(fh6-radio-worker PRIVATE
     include
     third_party/nlohmann
@@ -122,6 +109,21 @@ target_include_directories(fh6-radio-worker PRIVATE
 target_link_libraries(fh6-radio-worker PRIVATE advapi32 ws2_32 winhttp)
 
 set_target_properties(fh6-radio-worker PROPERTIES
-    OUTPUT_NAME fh6-radio-worker
+    OUTPUT_NAME fh2-radio-worker
     PREFIX ""
 )
+
+# Offline hook test (runs under Wine): maps the real FH2 exe, fakes FMOD.
+option(FH2_TESTS "Build the offline FH2 hook test" OFF)
+if(FH2_TESTS)
+    add_executable(fh2_hook_test
+        tests/fh2_hook_test.cpp
+        src/fh2/game_image.cpp
+        src/fh2/settings.cpp
+        src/fh2/radio_hook.cpp
+        src/log.cpp
+        src/ring_buffer.cpp
+        src/audio_source_manager.cpp
+    )
+    target_include_directories(fh2_hook_test PRIVATE include)
+endif()

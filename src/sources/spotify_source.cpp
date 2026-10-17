@@ -169,7 +169,7 @@ AuthState SpotifySource::auth_state() const noexcept {
 std::string SpotifySource::auth_instructions() const {
     return "1. Ensure your PC and phone are on the same Wi-Fi network.\n"
         "2. Open the Spotify app on your phone.\n"
-        "3. Tap the 'Devices' icon and select 'FH6 Universal Radio'.\n"
+        "3. Tap the 'Devices' icon and select 'FH2 Universal Radio'.\n"
         "Once connected, credentials will automatically save to the cache folder.";
 }
 
@@ -182,7 +182,7 @@ void SpotifySource::start_pipe_locked() {
     const std::wstring ff = ffmpeg_path_.empty() ? std::wstring{L"ffmpeg"} : ffmpeg_path_.wstring();
     const auto cache      = cfg_.cache_dir.wstring();
 
-    std::wstring spot_cmd = quote(spot) + L" --name \"FH6 Universal Radio\"" + L" --bitrate 320" +
+    std::wstring spot_cmd = quote(spot) + L" --name \"FH2 Universal Radio\"" + L" --bitrate 320" +
                             L" --backend pipe" + L" --initial-volume 100" + L" --cache " +
                             quote(cache) + L" --disable-audio-cache";
 
@@ -190,7 +190,7 @@ void SpotifySource::start_pipe_locked() {
         spot_cmd += L" --enable-volume-normalisation";
     }
 
-    // librespot defaults to 44100Hz s16le. We must resample to 48000Hz for FH6.
+    // librespot defaults to 44100Hz s16le. We must resample to 48000Hz for the radio stream.
     // added flags to disable FFmpeg internal buffering for perfect UI sync
     std::wstring ff_cmd = quote(ff) + L" -loglevel error" + L" -fflags nobuffer -flags low_delay" +
                         L" -blocksize 4096" + // force micro-block processing

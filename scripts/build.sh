@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Cross-compiles the version.dll proxy from Linux via MinGW-w64, then
-# stages everything that needs to ship in dist/.
+# Cross-compiles the d3dcompiler_47.dll proxy (FH2 / Azimuth) from Linux via
+# llvm-mingw, then stages everything that needs to ship in dist/.
 #
 #   $ scripts/build.sh
 #
 # Output mirrors scripts/build.ps1:
-#   dist/version.dll            the proxy DLL (drops next to forzahorizon6.exe)
-#   dist/fh6-radio/ui/          dashboard
-#   dist/fh6-radio/config.toml  seeded from config.example.toml
+#   dist/d3dcompiler_47.dll     the proxy DLL (drops next to azimuth.exe)
+#   dist/fh2-radio/ui/          dashboard
+#   dist/fh2-radio/config.toml  seeded from config.example.toml
 #   dist/README.txt             same end-user blurb as the Windows build
 #
 # Env vars:
@@ -57,14 +57,14 @@ if [ ! -f "$root/assets/default_artwork.png" ]; then
 fi
 
 rm -rf "$dist"
-mkdir -p "$dist/fh6-radio"
+mkdir -p "$dist/fh2-radio"
 
-cp "$build/version.dll"            "$dist/"
-cp "$build/fh6-radio-worker.exe"   "$dist/fh6-radio/"
-mkdir -p "$dist/fh6-radio/assets"
-cp "$root/assets/default_artwork.png" "$dist/fh6-radio/assets/default_artwork.png"
-cp -r "$root/ui/dist"              "$dist/fh6-radio/ui"
-cp "$root/config.example.toml"     "$dist/fh6-radio/config.toml"
+cp "$build/d3dcompiler_47.dll"     "$dist/"
+cp "$build/fh2-radio-worker.exe"   "$dist/fh2-radio/"
+mkdir -p "$dist/fh2-radio/assets"
+cp "$root/assets/default_artwork.png" "$dist/fh2-radio/assets/default_artwork.png"
+cp -r "$root/ui/dist"              "$dist/fh2-radio/ui"
+cp "$root/config.example.toml"     "$dist/fh2-radio/config.toml"
 
 cp "$root/scripts/dist-readme.txt" "$dist/README.txt"
 

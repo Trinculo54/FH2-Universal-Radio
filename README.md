@@ -1,3 +1,25 @@
+<h1 align="center">📻 FH2 Universal Radio</h1>
+
+> **Forza Horizon 2 (Xbox One build, running under Azimuth) port of
+> [FH6 Universal Radio](https://github.com/g0ldyy/fh6-universal-radio) by g0ldyy and contributors.**
+> Everything below the line is the upstream FH6 README; the FH2 differences are:
+>
+> - **Loader:** `d3dcompiler_47.dll` proxy next to `azimuth.exe` (all exports forwarded to System32),
+>   so it coexists with *Forza Horizon 2 Extra Options* (`winmm.dll`).
+> - **Hooking:** FH2 exports FMOD's low-level API by name. Instead of an FMOD DSP, the mod repoints
+>   two call sites inside `RadioStreamFmod` (`System::createSound` / `Sound::getSubSound`) and, for the
+>   taken-over station, substitutes an `FMOD_OPENUSER` PCM stream fed from the ring buffer. The game's
+>   own Studio event, radio bus, ducking, pause and volume all stay in charge.
+> - **Station:** one existing station is taken over (default *Innovative Leisure*, #7), set in
+>   `fh2-radio/fh2.ini`. DJ/jingles on it are silenced, track lengths are stretched so the game never
+>   cuts your music, and the song title/artist is written into the radio HUD.
+> - **Code:** `src/fh2/` + `include/fh2/` replace upstream's `src/fmod/` and the DX12 artwork injector.
+>   `tests/fh2_hook_test.cpp` maps the real FH2 exe and exercises the hooks against fake FMOD (runs under Wine).
+>
+> Build: `scripts/get-deps.sh && scripts/build.sh` (llvm-mingw), output in `dist/`.
+
+---
+
 <h1 align="center" id="title">📻 FH6 Universal Radio</h1>
 
 <p align="center">
