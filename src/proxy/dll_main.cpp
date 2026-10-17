@@ -9,6 +9,7 @@
 #include <windows.h>
 
 #include "fh2mod.h"
+#include "fh2/now_playing.hpp"
 
 #include <string>
 
@@ -46,5 +47,10 @@ FH2MOD_EXPORT int fh2mod_init(const FH2ModApi* api) {
     info.github_repo      = "Trinculo54/FH2-Universal-Radio";
     info.platform_version = FH2MOD_PLATFORM_VERSION;
     info.check_updates    = GetPrivateProfileIntW(L"updates", L"check", 1, ini.c_str()) != 0;
-    return api->register_mod(&info) ? 0 : 1;
+    FH2Mod* mod = api->register_mod(&info);
+    if (!mod) return 1;
+    // Other mods can ask what's playing (include/fh2universalradio.h).
+    if (api->api_version >= 2)
+        api->publish_interface(mod, FH2_RADIO_NOW_PLAYING, 1, fh2::now_playing_interface());
+    return 0;
 }

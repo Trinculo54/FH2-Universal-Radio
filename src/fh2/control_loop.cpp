@@ -1,4 +1,5 @@
 #include "fh2/control_loop.hpp"
+#include "fh2/now_playing.hpp"
 #include "fh2/game_image.hpp"
 #include "fh2/radio_hook.hpp"
 #include "fh6/audio_source.hpp"
@@ -180,11 +181,14 @@ void ControlLoop::run(const std::stop_token& tok) {
             const auto t = active->current_track();
             std::string title  = t.title;
             std::string artist = t.artist;
+            set_now_playing(busy && !draining, std::string{active->display_name()}, t.title, t.artist);
             if (title.empty()) {
                 title  = std::string{active->display_name()};
                 artist = "FH2 Universal Radio";
             }
             hook.push_metadata(title, artist);
+        } else if (tick % kMetaEveryTicks == 0) {
+            set_now_playing(false, {}, {}, {});
         }
 
         // 1-pole ramp (~100 ms) so play/pause fades instead of clicking.
