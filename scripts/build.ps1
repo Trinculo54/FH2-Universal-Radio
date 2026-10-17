@@ -8,7 +8,8 @@
 # "ucrt-x86_64" zip) with its bin\ folder on PATH, plus CMake and Ninja.
 #
 # Output:
-#   dist\d3dcompiler_47.dll     the proxy DLL (drops next to azimuth.exe)
+#   dist\d3dcompiler_47.dll     the FH2 Mod Loader (drops next to azimuth.exe)
+#   dist\fh2-mods\FH2UniversalRadio.dll  the radio mod
 #   dist\fh2-radio\ui\          dashboard (served at http://localhost:<port>)
 #   dist\fh2-radio\config.toml  seeded from config.example.toml
 #   dist\README.txt             end-user readme
@@ -45,6 +46,8 @@ if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
 New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 
 Copy-Item (Join-Path $build "d3dcompiler_47.dll") $dist
+New-Item -ItemType Directory -Force -Path (Join-Path $dist "fh2-mods") | Out-Null
+Copy-Item (Join-Path $build "FH2UniversalRadio.dll") (Join-Path $dist "fh2-mods")
 Copy-Item (Join-Path $build "fh2-radio-worker.exe") $dataDir
 
 New-Item -ItemType Directory -Force -Path (Join-Path $dataDir "assets") | Out-Null

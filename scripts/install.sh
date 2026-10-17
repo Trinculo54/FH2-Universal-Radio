@@ -29,7 +29,10 @@ backup_and_copy() {
     printf '  + %s\n' "${dst#"$azimuth/"}"
 }
 
+# The FH2 Mod Loader (in 1.0.x this file was the whole mod), then the mod
+# itself in fh2-mods, where the loader picks it up.
 backup_and_copy "$dist/d3dcompiler_47.dll" "$azimuth/d3dcompiler_47.dll"
+backup_and_copy "$dist/fh2-mods/FH2UniversalRadio.dll" "$azimuth/fh2-mods/FH2UniversalRadio.dll"
 
 mkdir -p "$azimuth/fh2-radio"
 cp -rfT "$dist/fh2-radio/ui" "$azimuth/fh2-radio/ui"

@@ -1,14 +1,27 @@
 name: Build
+
+# Every push and pull request builds the mod and uploads dist/ as an
+# artifact. Pushing a version tag (v1.1.0, ...) also attaches
+# FH2-Universal-Radio-<tag>.zip to a draft release with that name, ready to
+# be published from the Releases page.
+
 on:
   push:
+    branches: ["**"]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
       LLVM_MINGW_VERSION: "20260922"
+    outputs:
+      name: ${{ steps.name.outputs.name }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -26,8 +39,47 @@ jobs:
           ./scripts/get-deps.sh
           ./scripts/build.sh
 
+      - name: Name the build
+        id: name
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "name=FH2-Universal-Radio-${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=FH2-Universal-Radio-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload distribution
         uses: actions/upload-artifact@v4
         with:
-          name: fh2-universal-radio
+          name: ${{ steps.name.outputs.name }}
           path: dist/
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.name }}
+          path: dist
+
+      - name: Zip
+        run: cd dist && zip -r -9 "../${{ needs.build.outputs.name }}.zip" .
+
+      - name: Attach to a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZIP: ${{ needs.build.outputs.name }}.zip
+        run: |
+          # If the release already exists (e.g. the tag was made from the
+          # Releases page), just add or replace the zip on it.
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$ZIP" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$GITHUB_REF_NAME" "$ZIP" --repo "$GITHUB_REPOSITORY" \
+              --draft --title "FH2 Universal Radio $GITHUB_REF_NAME" --generate-notes
+          fi

@@ -12,18 +12,28 @@ radio volume, and shows your song title/artist in the radio HUD.
 
 Supported build: the Xbox One FH2 (forza_durango_release_final.exe,
 24 Nov 2015) running under Azimuth. Works alongside Forza Horizon 2 Extra
-Options (that mod uses winmm.dll; this one uses d3dcompiler_47.dll).
+Options (which uses winmm.dll) and WheresMyBuddy (which uses the same FH2
+Mod Loader as this mod).
 
 
 Install
 ~~~~~~~
 
 1. Close Azimuth.
-2. Copy d3dcompiler_47.dll and the fh2-radio folder next to azimuth.exe.
+2. Extract this zip next to azimuth.exe. You should end up with:
+       d3dcompiler_47.dll               (the FH2 Mod Loader)
+       fh2-mods\FH2UniversalRadio.dll   (the radio)
+       fh2-radio\                       (dashboard, settings, helpers)
 3. Start Azimuth and FH2. In Settings > Audio, turn Radio DJ off.
 4. Tune the radio to HORIZON PULSE (station 1). That station now
    plays the mod's audio. Every other station stays vanilla.
 5. Open http://localhost:8420 in a browser for the dashboard.
+
+Updating from 1.0.x: extract over the old install and let it replace
+d3dcompiler_47.dll. That file used to be the whole mod; it's now the FH2
+Mod Loader, which loads every DLL in fh2-mods. Your settings and Spotify
+login in fh2-radio are kept. Other FH2 mods that use the loader ship the
+same d3dcompiler_47.dll, so it's fine for them to overwrite it.
 
 Windows Firewall may ask about azimuth.exe / librespot.exe the first time:
 allow private networks so your phone can see the Spotify device.
@@ -63,7 +73,9 @@ away and back to apply immediately).
 Troubleshooting
 ~~~~~~~~~~~~~~~
 
-Everything is logged to fh2-radio\bridge.log. Useful lines:
+Everything is logged to fh2-radio\bridge.log. fh2-mods\loader.log shows
+whether the loader found and loaded the radio at all. Useful lines in
+bridge.log:
 
   [fh2] found FH2 image ...           the mod saw the game start
   [fh2] radio hooks installed ...     the radio is patched
@@ -74,7 +86,9 @@ No sound on Horizon Pulse: check the dashboard shows Spotify "playing" and
 that you've picked "FH2 Universal Radio" in the Spotify app. If the log
 never says "radio hooks installed", send the log over.
 
-Uninstall: delete d3dcompiler_47.dll and the fh2-radio folder.
+Uninstall: delete fh2-mods\FH2UniversalRadio.dll and the fh2-radio
+folder. Delete d3dcompiler_47.dll and fh2-mods too if no other FH2 mods
+use them.
 
 
 License
