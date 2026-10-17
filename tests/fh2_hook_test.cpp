@@ -6,10 +6,16 @@
 // fakes, then drives the patched code path with a fake RadioStreamFmod /
 // SampleProperties graph and checks every decision the hook makes.
 //
-//   fh2_hook_test.exe <path to forza_durango_release_final.exe>
+//   fh2_hook_test.exe <path to forza_durango_release_final.exe> [RadioInfo_EN.xml]
+//
+// With FH2_TEST_PLATFORM=1 it runs as azimuth.exe next to the real FH2 Mod
+// Platform (d3dcompiler_47.dll) and fh2-mods\RadioShim.dll, which hands it
+// the platform's API, so the call sites are patched as platform hooks and
+// every game call goes through the platform's stubs (tests/run_platform_hook_test.sh).
 
 #include "fh2/game_image.hpp"
 #include "fh2/offsets.hpp"
+#include "fh2/platform_link.hpp"
 #include "fh2/radio_hook.hpp"
 #include "fh2/settings.hpp"
 #include "fh6/audio_source_manager.hpp"
@@ -219,6 +225,10 @@ static uint32_t call_like_game(std::byte* stub, std::byte* rs, void* system, con
 
 using PcmRead = uint32_t (*)(void*, void*, uint32_t);
 
+extern "C" __declspec(dllexport) void fh2_test_set_platform(const FH2ModApi* api, FH2Mod* mod) {
+    set_platform(api, mod);
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::printf("usage: fh2_hook_test <forza_durango_release_final.exe>\n");
@@ -229,6 +239,10 @@ int main(int argc, char** argv) {
     std::string dir = std::string{tmp} + "fh2_hook_test";
     CreateDirectoryA(dir.c_str(), nullptr);
     fh6::log::init(dir + "\\test.log");
+
+    char env[8]{};
+    const bool with_platform = GetEnvironmentVariableA("FH2_TEST_PLATFORM", env, sizeof env) && env[0] == '1';
+    if (with_platform) CHECK(LoadLibraryW(L"d3dcompiler_47.dll") != nullptr); // as azimuth.exe does
 
     std::byte* mapped = map_image(argv[1]);
     CHECK(mapped != nullptr);
@@ -261,7 +275,17 @@ int main(int argc, char** argv) {
 
     fh6::AudioSourceManager mgr{1 << 20};
     auto& hook = RadioHook::instance();
-    CHECK(hook.install(img, mgr, settings, stations));
+    if (with_platform) {
+        CHECK(wait_for_platform(10000) != nullptr && platform_v3() != nullptr);
+        bool ok = false; // the platform says when the game is ready to hook
+        for (int i = 0; i < 200 && !ok; ++i)
+            if (!(ok = hook.install(img, mgr, settings, stations))) Sleep(50);
+        CHECK(ok);
+        CHECK(hook.via_platform());
+    } else {
+        CHECK(hook.install(img, mgr, settings, stations));
+        CHECK(!hook.via_platform());
+    }
 
     std::byte* create_site = img.at(rva::kTrackCreateSoundCall);
     std::byte* sub_site    = img.at(rva::kTrackGetSubSoundCall);

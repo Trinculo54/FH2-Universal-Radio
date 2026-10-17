@@ -1,5 +1,6 @@
 #include "fh2/radio_hook.hpp"
 #include "fh2/offsets.hpp"
+#include "fh2/platform_link.hpp"
 #include "fh6/audio_source_manager.hpp"
 #include "fh6/log.hpp"
 #include "fh6/safe_mem.hpp"
@@ -13,6 +14,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace fh2 {
 
@@ -358,6 +360,20 @@ bool RadioHook::install(const GameImage& img, fh6::AudioSourceManager& mgr, Sett
                         const StationMap& stations) noexcept {
     if (installed()) return true;
 
+    // Platform 2.2+: the call sites are patched as platform hooks, once
+    // Extra Options has finished patching the game (it refuses all of its
+    // patches if anything it patches was changed first).
+    const FH2ModApi* api = platform_v3();
+    if (api) {
+        if (platform_refused_) return false;
+        if (!api->wait_for_code(0)) {
+            static bool said = false;
+            if (!std::exchange(said, true))
+                fh6::log::info("[fh2] waiting: the FH2 Mod Platform says the game isn't ready to hook yet");
+            return false;
+        }
+    }
+
     struct Export {
         const char* name;
         uint32_t rva;
@@ -375,8 +391,10 @@ bool RadioHook::install(const GameImage& img, fh6::AudioSourceManager& mgr, Sett
 
     std::byte* create_site = img.at(rva::kTrackCreateSoundCall);
     std::byte* sub_site    = img.at(rva::kTrackGetSubSoundCall);
-    if (call_target(create_site) != img.at(rva::kCreateSound) ||
-        call_target(sub_site) != img.at(rva::kGetSubSound)) {
+    // (With the platform, it checks the call sites itself, and another
+    // mod's platform hook on them is fine: the hooks chain.)
+    if (!api && (call_target(create_site) != img.at(rva::kCreateSound) ||
+                 call_target(sub_site) != img.at(rva::kGetSubSound))) {
         fh6::log::info("[fh2] waiting: radio call sites not in their original state yet");
         return false;
     }
@@ -407,6 +425,44 @@ bool RadioHook::install(const GameImage& img, fh6::AudioSourceManager& mgr, Sett
     create_stub_   = stub_page_;
     subsound_stub_ = stub_page_ + 0x40;
 
+    if (api) {
+        // The stubs are the detours: they're entered exactly as the call
+        // would have entered createSound/getSubSound (the platform's stubs
+        // only jmp), so the createSound stub still finds the caller's rdi.
+        // If another mod's hook on the same call runs before ours, rdi may
+        // not be the RadioStreamFmod any more; on_create_sound checks its
+        // vtable and falls back to the bank name then.
+        if (!platform_sub_) {
+            platform_sub_ = api->hook_call(platform_mod(), "RadioStreamFmod::start -> Sound::getSubSound", sub_site,
+                                           subsound_stub_, &platform_orig_sub_);
+            platform_create_ =
+                platform_sub_ ? api->hook_call(platform_mod(), "RadioStreamFmod::load -> System::createSound",
+                                               create_site, create_stub_, &platform_orig_create_)
+                              : nullptr;
+            if (!platform_create_) {
+                platform_refused_ = true;
+                fh6::log::error("[fh2] the FH2 Mod Platform didn't allow the radio hooks (fh2-mods\\platform.log "
+                                "says why); the radio is off");
+                return false;
+            }
+        }
+        // Passthrough calls go on through the hooks' originals (the game's
+        // FMOD functions, or another mod's hook behind ours).
+        g_get_sub_sound = reinterpret_cast<GetSubSoundFn>(platform_orig_sub_);
+        g_create_sound  = reinterpret_cast<CreateSoundFn>(platform_orig_create_);
+        // Both at once; getSubSound's is made first, so it goes live first.
+        if (api->enable_hooks(platform_mod(), nullptr) != 1) {
+            fh6::log::error("[fh2] the FH2 Mod Platform couldn't switch the radio hooks on (see "
+                            "fh2-mods\\platform.log); retrying");
+            return false;
+        }
+        via_platform_ = true;
+        installed_.store(true, std::memory_order_release);
+        fh6::log::info("[fh2] radio hooks installed through the FH2 Mod Platform: image @0x{:X}, stubs @0x{:X}",
+                       reinterpret_cast<uintptr_t>(img.base), reinterpret_cast<uintptr_t>(stub_page_));
+        return true;
+    }
+
     // getSubSound first: it's a no-op for vanilla sounds, so it's safe to
     // have it live before the createSound substitution starts.
     if (!patch_call(sub_site, img.at(rva::kGetSubSound), subsound_stub_)) {
@@ -426,7 +482,7 @@ bool RadioHook::install(const GameImage& img, fh6::AudioSourceManager& mgr, Sett
 }
 
 void RadioHook::verify() noexcept {
-    if (!installed()) return;
+    if (!installed() || via_platform_) return; // the platform owns its hooks
     std::byte* create_site = img_.at(rva::kTrackCreateSoundCall);
     std::byte* sub_site    = img_.at(rva::kTrackGetSubSoundCall);
     if (call_target(sub_site) == img_.at(rva::kGetSubSound)) {
