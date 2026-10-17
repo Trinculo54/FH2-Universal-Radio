@@ -4,7 +4,6 @@
 // FH2 port of FH6 Universal Radio (GPLv3, github.com/g0ldyy/fh6-universal-radio).
 
 #include "fh6/log.hpp"
-#include "fh2_updates.hpp"
 #include "fh6/config.hpp"
 #include "fh6/config_store.hpp"
 #include "fh6/deps.hpp"
@@ -137,12 +136,7 @@ void run_bridge(HMODULE self) noexcept {
     log::init(data_dir / "bridge.log");
     log::info("[bridge] FH2 Universal Radio {} starting; data_dir={}", FH2_RADIO_VERSION, data_dir.string());
 
-    // Version / update notice on the title screen (background).
-    fh2common::start_update_check(
-        {L"FH2 Universal Radio", L"FH2UniversalRadio.dll", FH2_RADIO_VERSION, "Trinculo54/FH2-Universal-Radio",
-         FH2_LOADER_VERSION, dir,
-         GetPrivateProfileIntW(L"updates", L"check", 1, (data_dir / "fh2.ini").wstring().c_str()) != 0,
-         [](const std::string& m) { log::info("[updates] {}", m); }});
+    // Update notices come from the FH2 Mod Platform (see proxy/dll_main.cpp).
 
     const auto ui_dir = data_dir / "ui";
     if (!verify_ui_credits(ui_dir)) {

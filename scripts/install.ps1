@@ -31,7 +31,7 @@ function Backup-AndCopy($src, $dst) {
     "  + $($dst.Substring($AzimuthDir.Length).TrimStart('\'))"
 }
 
-# The FH2 Mod Loader (in 1.0.x this file was the whole mod), then the mod
+# The FH2 Mod Platform (in 1.0.x this file was the whole mod), then the mod
 # itself in fh2-mods, where the loader picks it up.
 Backup-AndCopy (Join-Path $dist "d3dcompiler_47.dll") (Join-Path $AzimuthDir "d3dcompiler_47.dll") | Out-Host
 Backup-AndCopy (Join-Path $dist "fh2-mods\FH2UniversalRadio.dll") (Join-Path $AzimuthDir "fh2-mods\FH2UniversalRadio.dll") | Out-Host

@@ -10,7 +10,7 @@ The music plays through FH2's own radio, so it behaves like any other station. I
 
 Only one station is changed, Horizon Pulse by default, since it's the first one you unlock. Every other station stays exactly as it was. Everything the FH6 mod can play works here too: Spotify Connect, local files, online radio from thousands of stations, YouTube Music links, Jellyfin playlists, and audio captured from any app through a virtual audio cable. The dashboard runs at `http://localhost:8420`.
 
-It also works alongside [Forza Horizon 2 Extra Options](https://github.com/RokkuDayo/forzahorizon2_extraoptions) and [WheresMyBuddy](https://github.com/Trinculo54/WheresMyBuddy). Extra Options loads through `winmm.dll`, and this mod and WheresMyBuddy load through the FH2 Mod Loader, so none of them get in each other's way.
+It also works alongside [Forza Horizon 2 Extra Options](https://github.com/RokkuDayo/forzahorizon2_extraoptions) and [WheresMyBuddy](https://github.com/Trinculo54/WheresMyBuddy). Extra Options loads through `winmm.dll`, and this mod and WheresMyBuddy are built on the [FH2 Mod Platform](https://github.com/Trinculo54/FH2-Mod-Platform), so none of them get in each other's way.
 
 ## Install
 
@@ -24,11 +24,11 @@ Open <http://localhost:8420> in any browser on the same machine to get to the da
 
 ### Updating from 1.0.x
 
-Extract the new zip over the old install and let it replace `d3dcompiler_47.dll`. In 1.0.x that file was the whole mod. From 1.1.0 it's the FH2 Mod Loader, a tiny DLL whose only job is to load every mod in the `fh2-mods` folder, and the radio itself lives in `fh2-mods\FH2UniversalRadio.dll`. Your settings, Spotify login and downloaded helpers in `fh2-radio` are kept.
+Extract the new zip over the old install and let it replace `d3dcompiler_47.dll`. In 1.0.x that file was the whole mod. Since 1.1.0 it's been the shared loader for FH2 mods, which became the FH2 Mod Platform in 1.3.0. It loads every mod in the `fh2-mods` folder, and the radio itself lives in `fh2-mods\FH2UniversalRadio.dll`. Your settings, Spotify login and downloaded helpers in `fh2-radio` are kept.
 
 ### Using it with other FH2 mods
 
-Every mod built on the FH2 Mod Loader ships the same `d3dcompiler_47.dll`, so you can install them in any order and let them overwrite it. Each one just drops its own DLL into `fh2-mods`. [WheresMyBuddy](https://github.com/Trinculo54/WheresMyBuddy), which puts your Xbox friends' names on the Drivatars, is one of them. If there's no `fh2-mods\loader.log` after you launch the game, something has replaced the loader, such as an old 1.0.x radio zip. Copy `d3dcompiler_47.dll` from this zip back next to `azimuth.exe`.
+Every mod built on the [FH2 Mod Platform](https://github.com/Trinculo54/FH2-Mod-Platform) ships the same `d3dcompiler_47.dll`, so you can install them in any order and let them overwrite it. Each one just drops its own DLL into `fh2-mods`. [WheresMyBuddy](https://github.com/Trinculo54/WheresMyBuddy), which puts your Xbox friends' names on the Drivatars, is one of them. If there's no `fh2-mods\platform.log` after you launch the game, something has replaced the platform, such as an old 1.0.x radio zip. Copy `d3dcompiler_47.dll` from this zip back next to `azimuth.exe`.
 
 ### Spotify Connect
 
@@ -48,7 +48,7 @@ Everything else, like sources, volume and local music folders, is set from the d
 
 ### Updates
 
-When a newer FH2 Universal Radio is out, the title screen tells you: "PRESS (A) TO START" gets a note like "FH2 Universal Radio 1.3.0 is available" added to it. The mod asks GitHub at most every six hours and remembers the answer between launches, and `check=0` under `[updates]` in `fh2.ini` turns that off. If another mod has put back an older FH2 Mod Loader than the one the radio came with, the title screen says that too, and reinstalling the radio fixes it. Other mods that use the loader, like WheresMyBuddy, put their notes in the same spot. The version you have is in the first line of `bridge.log` and in the DLL's file properties.
+When a newer FH2 Universal Radio is out, the title screen tells you: "PRESS (A) TO START" gets a note like "FH2 Universal Radio 1.3.0 is available" added to it. The mod asks GitHub at most every six hours and remembers the answer between launches, and `check=0` under `[updates]` in `fh2.ini` turns that off. If another mod has put back an older FH2 Mod Platform than the one the radio came with, the title screen says that too, and reinstalling the radio fixes it. Other mods on the platform, like WheresMyBuddy, put their notes in the same spot. The update check and the title screen notice come from the platform. The version you have is in the first line of `bridge.log` and in the DLL's file properties.
 
 ## Uninstall
 
@@ -56,26 +56,26 @@ Delete `fh2-mods\FH2UniversalRadio.dll` and the `fh2-radio` folder from your Azi
 
 ## Build from source
 
-The output is the FH2 Mod Loader (`d3dcompiler_47.dll`, built from `loader/`) plus the mod itself, `FH2UniversalRadio.dll`. It's built with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases), since the code uses MSVC-style SEH that only Clang supports among the free compilers. On Linux, with CMake and llvm-mingw installed:
+The output is the FH2 Mod Platform (`d3dcompiler_47.dll`, built from the `platform/` git submodule) plus the mod itself, `FH2UniversalRadio.dll`. It's built with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases), since the code uses MSVC-style SEH that only Clang supports among the free compilers. On Linux, with CMake and llvm-mingw installed:
 
 ```bash
 ./scripts/get-deps.sh   # one-time: header-only deps
 ./scripts/build.sh      # compile + stage dist/
 ```
 
-`dist/` then holds `d3dcompiler_47.dll`, the `fh2-mods` and `fh2-radio` folders and a `README.txt`, ready to zip up. GitHub Actions does the same on every push and uploads the result as a build artifact. Pushing a tag like `v1.1.0` also creates a draft release with the zip attached, ready to be published. The version lives in `project(... VERSION x.y.z)` in `CMakeLists.txt`. Bump it before tagging, since the tag build refuses to run if the two don't match, and it's what the mod compares against the latest GitHub release. The code in `common/` is shared with WheresMyBuddy and should stay identical in both repos.
+`dist/` then holds `d3dcompiler_47.dll`, the `fh2-mods` and `fh2-radio` folders and a `README.txt`, ready to zip up. GitHub Actions does the same on every push and uploads the result as a build artifact. Pushing a tag like `v1.1.0` also creates a draft release with the zip attached, ready to be published. The version lives in `project(... VERSION x.y.z)` in `CMakeLists.txt`. Bump it before tagging, since the tag build refuses to run if the two don't match, and it's what the mod compares against the latest GitHub release. Clone with `--recursive`, or run `git submodule update --init`, to get the platform; the build scripts do it for you if it's missing.
 
-The loader is a `d3dcompiler_47.dll` proxy. Azimuth imports that DLL and Windows looks next to the exe first, so it gets loaded at startup without touching any of Azimuth's own files. Every export forwards to the real one in System32, and all the loader does is load `fh2-mods\*.dll` and log what it did to `fh2-mods\loader.log`.
+The platform is a `d3dcompiler_47.dll` proxy. Azimuth imports that DLL and Windows looks next to the exe first, so it gets loaded at startup without touching any of Azimuth's own files. Every export forwards to the real one in System32. The platform loads `fh2-mods\*.dll`, calls the radio's `fh2mod_init` (in `src/proxy/dll_main.cpp`), and logs what it did to `fh2-mods\platform.log`. Its own repo, the [FH2 Mod Platform](https://github.com/Trinculo54/FH2-Mod-Platform), documents it for anyone making FH2 mods.
 
 The FH2-specific code is in `src/fh2/` and `include/fh2/`. FH2 links FMOD Studio statically and exports FMOD's low-level API by name. The mod redirects two calls inside the game's `RadioStreamFmod` class, `System::createSound` and `Sound::getSubSound`. For the chosen station, it hands the game a user PCM stream fed from the mod's audio buffer instead of the song from the sound bank, and the game's own Studio event and radio bus take it from there. There's also an offline test in `tests/` that maps the real FH2 executable and runs the hooks against a fake FMOD under Wine.
 
 ## Troubleshooting
 
-Everything gets logged to `fh2-radio\bridge.log`, and the FH2 Mod Loader writes `fh2-mods\loader.log`, which shows whether the radio was loaded at all. If the mod is working, you'll see `radio hooks installed` shortly after the game starts, and a line ending in `TAKEOVER` whenever the game loads a song on your station.
+Everything gets logged to `fh2-radio\bridge.log`, and the FH2 Mod Platform writes `fh2-mods\platform.log`, which shows whether the radio was loaded at all. If the mod is working, you'll see `radio hooks installed` shortly after the game starts, and a line ending in `TAKEOVER` whenever the game loads a song on your station.
 
 | Symptom | Fix |
 |---|---|
-| Dashboard doesn't open | Make sure `d3dcompiler_47.dll` is next to `azimuth.exe` (not inside `data\bin`) and `FH2UniversalRadio.dll` is inside `fh2-mods`, then restart Azimuth. `fh2-mods\loader.log` should list it as loaded. |
+| Dashboard doesn't open | Make sure `d3dcompiler_47.dll` is next to `azimuth.exe` (not inside `data\bin`) and `FH2UniversalRadio.dll` is inside `fh2-mods`, then restart Azimuth. `fh2-mods\platform.log` should list it as loaded. |
 | FH2 Universal Radio doesn't show up in Spotify | Check you're on the same network, that the firewall allowed private networks, and that the account has Premium. Give librespot a few seconds to download on the first launch. |
 | Station still plays the original songs | Check that `station` in `fh2.ini` matches the station you're listening to, and that the log says `radio hooks installed`. Tune away and back. |
 | Station is silent | Make sure something is actually playing in Spotify (or your chosen source) and that the dashboard shows it as playing. |

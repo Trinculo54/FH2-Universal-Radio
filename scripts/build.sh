@@ -5,7 +5,7 @@
 #   $ scripts/build.sh
 #
 # Output mirrors scripts/build.ps1:
-#   dist/d3dcompiler_47.dll     the FH2 Mod Loader (drops next to azimuth.exe)
+#   dist/d3dcompiler_47.dll     the FH2 Mod Platform (drops next to azimuth.exe)
 #   dist/fh2-mods/FH2UniversalRadio.dll  the radio mod
 #   dist/fh2-radio/ui/          dashboard
 #   dist/fh2-radio/config.toml  seeded from config.example.toml
@@ -38,6 +38,10 @@ EOF
     exit 1
 fi
 
+if [ ! -f "$root/platform/CMakeLists.txt" ]; then
+    git -C "$root" submodule update --init platform
+fi
+
 if [ ! -f "$root/third_party/nlohmann/nlohmann/json.hpp" ]; then
     printf '\033[33mthird_party/ is empty, running get-deps.sh first.\033[0m\n'
     "$root/scripts/get-deps.sh"
@@ -60,7 +64,7 @@ fi
 rm -rf "$dist"
 mkdir -p "$dist/fh2-radio"
 
-cp "$build/d3dcompiler_47.dll"     "$dist/"
+cp "$build/platform/d3dcompiler_47.dll" "$dist/"
 mkdir -p "$dist/fh2-mods"
 cp "$build/FH2UniversalRadio.dll"  "$dist/fh2-mods/"
 cp "$build/fh2-radio-worker.exe"   "$dist/fh2-radio/"

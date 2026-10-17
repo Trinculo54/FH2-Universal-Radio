@@ -1,12 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 # Bump VERSION before tagging a release (the tag build checks they match).
-project(fh2_universal_radio VERSION 1.2.0 LANGUAGES C CXX RC)
-# The FH2 Mod Loader this mod ships with (same loader in every FH2 mod).
-set(FH2_LOADER_VERSION 1.1.0)
-string(REPLACE "." ";" _lv "${FH2_LOADER_VERSION}")
-list(GET _lv 0 _lv1)
-list(GET _lv 1 _lv2)
-list(GET _lv 2 _lv3)
+project(fh2_universal_radio VERSION 1.3.0 LANGUAGES C CXX RC)
 configure_file(cmake/version.h.in ${CMAKE_BINARY_DIR}/generated/fh2_version.h)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -50,16 +44,9 @@ else()
     add_link_options(-static)
 endif()
 
-# FH2 Mod Loader: d3dcompiler_47.dll next to azimuth.exe, loads fh2-mods\*.dll.
-add_library(fh2loader SHARED loader/loader.cpp)
-if(NOT MSVC)
-    target_sources(fh2loader PRIVATE loader/d3dcompiler_47.def)
-endif()
-target_include_directories(fh2loader PRIVATE loader)
-target_link_libraries(fh2loader PRIVATE user32)
-target_sources(fh2loader PRIVATE loader/version.rc)
-target_include_directories(fh2loader PRIVATE ${CMAKE_BINARY_DIR}/generated)
-set_target_properties(fh2loader PROPERTIES OUTPUT_NAME d3dcompiler_47 PREFIX "")
+# The FH2 Mod Platform (git submodule): d3dcompiler_47.dll, shipped next
+# to azimuth.exe, and fh2mod.h.
+add_subdirectory(platform)
 
 # The radio itself: fh2-mods\FH2UniversalRadio.dll.
 add_library(fh2radio SHARED
@@ -88,15 +75,11 @@ add_library(fh2radio SHARED
     src/worker/worker_client.cpp
     src/sources/online_radio_source.cpp
     src/version.rc
-    common/fh2_strings.cpp
-    common/fh2_updates.cpp
 )
-target_compile_definitions(fh2radio PRIVATE FH2_RADIO_VERSION="${PROJECT_VERSION}"
-                           FH2_LOADER_VERSION="${FH2_LOADER_VERSION}")
+target_compile_definitions(fh2radio PRIVATE FH2_RADIO_VERSION="${PROJECT_VERSION}")
 
 target_include_directories(fh2radio PRIVATE
     include
-    common
     ${CMAKE_BINARY_DIR}/generated
     third_party/nlohmann
     third_party/toml11
@@ -104,7 +87,7 @@ target_include_directories(fh2radio PRIVATE
     third_party/stb
 )
 
-target_link_libraries(fh2radio PRIVATE ws2_32 bcrypt psapi winhttp ole32 uuid ksuser runtimeobject version)
+target_link_libraries(fh2radio PRIVATE fh2mod_api ws2_32 bcrypt psapi winhttp ole32 uuid ksuser runtimeobject)
 
 set_target_properties(fh2radio PROPERTIES
     OUTPUT_NAME FH2UniversalRadio

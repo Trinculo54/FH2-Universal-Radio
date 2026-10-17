@@ -8,7 +8,7 @@
 # "ucrt-x86_64" zip) with its bin\ folder on PATH, plus CMake and Ninja.
 #
 # Output:
-#   dist\d3dcompiler_47.dll     the FH2 Mod Loader (drops next to azimuth.exe)
+#   dist\d3dcompiler_47.dll     the FH2 Mod Platform (drops next to azimuth.exe)
 #   dist\fh2-mods\FH2UniversalRadio.dll  the radio mod
 #   dist\fh2-radio\ui\          dashboard (served at http://localhost:<port>)
 #   dist\fh2-radio\config.toml  seeded from config.example.toml
@@ -23,6 +23,10 @@ foreach ($tool in @("cmake", "ninja", "x86_64-w64-mingw32-clang++")) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
         throw "$tool not found on PATH. Install CMake, Ninja and llvm-mingw (add its bin\ folder to PATH)."
     }
+}
+
+if (-not (Test-Path (Join-Path $root "platform\CMakeLists.txt"))) {
+    & git -C $root submodule update --init platform
 }
 
 if (-not (Test-Path (Join-Path $root "third_party\nlohmann\nlohmann\json.hpp"))) {
@@ -45,7 +49,7 @@ $dataDir = Join-Path $dist "fh2-radio"
 if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
 New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 
-Copy-Item (Join-Path $build "d3dcompiler_47.dll") $dist
+Copy-Item (Join-Path $build "platform\d3dcompiler_47.dll") $dist
 New-Item -ItemType Directory -Force -Path (Join-Path $dist "fh2-mods") | Out-Null
 Copy-Item (Join-Path $build "FH2UniversalRadio.dll") (Join-Path $dist "fh2-mods")
 Copy-Item (Join-Path $build "fh2-radio-worker.exe") $dataDir
