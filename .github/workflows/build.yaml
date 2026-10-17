@@ -2,8 +2,8 @@ name: Build
 
 # Every push and pull request builds the mod and uploads dist/ as an
 # artifact. Pushing a version tag (v1.1.0, ...) also attaches
-# FH2-Universal-Radio-<tag>.zip to a draft release with that name, ready to
-# be published from the Releases page.
+# FH2-Universal-Radio-<tag>.zip to the release with that name (a new draft
+# if there isn't one yet), unless a zip is already attached.
 
 on:
   push:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       LLVM_MINGW_VERSION: "20260922"
     outputs:
@@ -58,7 +58,7 @@ jobs:
   release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
@@ -70,16 +70,32 @@ jobs:
       - name: Zip
         run: cd dist && zip -r -9 "../${{ needs.build.outputs.name }}.zip" .
 
-      - name: Attach to a draft release
+      - name: Attach to the release
         env:
           GH_TOKEN: ${{ github.token }}
           ZIP: ${{ needs.build.outputs.name }}.zip
+          TITLE: "FH2 Universal Radio"
         run: |
-          # If the release already exists (e.g. the tag was made from the
-          # Releases page), just add or replace the zip on it.
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$ZIP" --clobber --repo "$GITHUB_REPOSITORY"
+          set -uo pipefail
+          fail() { echo "::error::$1: $(tr '\n' ' ' < err.txt)"; exit 1; }
+          # A release made from the Releases page already exists by the time
+          # its tag triggers this. If it already has a zip (uploaded by hand),
+          # leave it alone; otherwise add ours. With no release yet, make a
+          # draft one.
+          # Look the release up through the list too: a release that was a
+          # draft until a moment ago isn't always found by tag straight away.
+          find_release() {
+            gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" 2>err.txt |
+              jq -ce --arg t "$GITHUB_REF_NAME" '[.[] | select(.tag_name == $t)][0] // empty'
+          }
+          rel=$(find_release) || { sleep 15; rel=$(find_release); } || rel=""
+          if [ -n "$rel" ]; then
+            if jq -e '[.assets[].name | endswith(".zip")] | any' <<<"$rel" >/dev/null; then
+              echo "::notice::$GITHUB_REF_NAME already has a zip attached; not adding another."
+              exit 0
+            fi
+            gh release upload "$GITHUB_REF_NAME" "$ZIP" --repo "$GITHUB_REPOSITORY" 2>err.txt || fail "upload failed"
           else
             gh release create "$GITHUB_REF_NAME" "$ZIP" --repo "$GITHUB_REPOSITORY" \
-              --draft --title "FH2 Universal Radio $GITHUB_REF_NAME" --generate-notes
+              --draft --title "$TITLE $GITHUB_REF_NAME" --generate-notes 2>err.txt || fail "release create failed"
           fi
