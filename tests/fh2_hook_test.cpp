@@ -119,7 +119,7 @@ static uint32_t fake_create_sound(void* system, const char* name, uint32_t mode,
     *out = s;
     return 0;
 }
-static uint32_t fake_get_sub_sound(void* sound, int, void** out) {
+static uint32_t fake_get_sub_sound(void*, int, void** out) {
     *out = &g_bank_sub;
     return 0;
 }
@@ -179,6 +179,10 @@ static FakeSample* make_sample(GameImage img, const std::string& sound, const st
     std::memcpy(f->props + layout::kPropMarkers + 16, &e, 8);
     void* vt = img.at(rva::kRadioStreamFmodVtbl);
     std::memcpy(f->rs, &vt, 8);
+    void* svt = img.at(rva::kRadioSampleVtbl);
+    std::memcpy(f->sample, &svt, 8);
+    int32_t start = 123456;
+    std::memcpy(f->rs + layout::kStreamStartMs, &start, 4);
     std::byte* sp = f->sample;
     std::memcpy(f->rs + layout::kStreamSample, &sp, 8);
     std::memcpy(f->sample + layout::kSampleProps, &f->props, 8);
@@ -291,6 +295,7 @@ int main(int argc, char** argv) {
     CHECK(out == c1.sound);
     CHECK(*reinterpret_cast<int32_t*>(il->props + layout::kPropSampleLength) == 4 * 3600 * 1000);
     CHECK(il->markers[7] == 4 * 3600 * 1000 && il->markers[1] == 227);
+    CHECK(*reinterpret_cast<int32_t*>(il->rs + layout::kStreamStartMs) == 0);
     CHECK(get_str(il->props + layout::kPropDisplayName) ==
           "Bohemian Rhapsody - Remastered 2011 With A Really Long Title");
     CHECK(get_str(il->props + layout::kPropArtist) == "Queen");
@@ -323,6 +328,17 @@ int main(int argc, char** argv) {
     // Live metadata update (in place, no allocation from this thread).
     hook.push_metadata("Don't Stop Me Now", "Queen");
     CHECK(get_str(il->props + layout::kPropDisplayName) == "Don't Stop Me Now");
+
+    // A freed / reused owner is never written to from the control thread.
+    {
+        void* bogus = nullptr;
+        void* real;
+        std::memcpy(&real, il->rs, 8);
+        std::memcpy(il->rs, &bogus, 8);
+        hook.push_metadata("Should Not Land", "Nobody");
+        CHECK(get_str(il->props + layout::kPropDisplayName) == "Don't Stop Me Now");
+        std::memcpy(il->rs, &real, 8);
+    }
 
     // 2) DJ on the takeover station -> short silent stream.
     auto* dj = make_sample(img, "HZ2_VO_RadioDJ7_BarnFinds_BarnFind10Seen_1", "/Master/Radio/DJ",

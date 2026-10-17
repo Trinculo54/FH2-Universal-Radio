@@ -36,6 +36,8 @@ constexpr uint32_t kTrackGetSubSoundCall = 0x010221F2u;
 
 // RTTI-confirmed vtable of RadioStreamFmod (".?AVRadioStreamFmod@@").
 constexpr uint32_t kRadioStreamFmodVtbl = 0x02E76220u;
+// RTTI-confirmed vtable of RadioSample (".?AVRadioSample@@").
+constexpr uint32_t kRadioSampleVtbl = 0x02E74ED8u;
 
 // The game's global operator new(size_t). Only ever called from a game thread.
 constexpr uint32_t kOperatorNew = 0x003229C0u;
@@ -55,6 +57,7 @@ namespace layout {
 // RadioStreamFmod
 constexpr std::ptrdiff_t kStreamSound  = 0x08; // FMOD::Sound*
 constexpr std::ptrdiff_t kStreamEvent  = 0x10; // FMOD::Studio::EventInstance*
+constexpr std::ptrdiff_t kStreamStartMs = 0x28; // int32 timeline seek applied by tryStart
 constexpr std::ptrdiff_t kStreamSample = 0x30; // std::shared_ptr<IRadioSample> (raw ptr)
 
 // RadioSample

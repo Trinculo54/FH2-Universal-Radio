@@ -39,7 +39,12 @@ std::optional<GameImage> find_game_image() noexcept {
         if (mbi.State == MEM_COMMIT && mbi.BaseAddress == mbi.AllocationBase &&
             (mbi.Protect & kReadable) && !(mbi.Protect & PAGE_GUARD) && mbi.RegionSize >= 0x1000) {
             auto* base = static_cast<std::byte*>(mbi.BaseAddress);
-            if (header_matches(base)) return GameImage{base, image::kSizeOfImage};
+            // Also require the export directory to resolve at its RVA, which
+            // rejects raw file views of the exe and half-populated mappings.
+            if (header_matches(base)) {
+                GameImage img{base, image::kSizeOfImage};
+                if (find_export(img, exports::kCreateSound) == rva::kCreateSound) return img;
+            }
         }
         if (next <= addr) break;
         addr = next;

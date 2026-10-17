@@ -147,6 +147,23 @@ struct Original {
 std::mutex g_mu; // guards g_originals + metadata cache
 std::unordered_map<std::byte*, Original> g_originals;
 std::atomic<std::byte*> g_active_props{nullptr};
+std::atomic<std::byte*> g_active_rs{nullptr}; // RadioStreamFmod that owns g_active_props
+std::byte* g_img_base = nullptr;
+
+// True while `rs` is still a live RadioStreamFmod whose sample is still a
+// RadioSample pointing at `props`. Checked before every write made from the
+// control thread, so a freed/reused object is never written to.
+bool props_still_live(std::byte* rs, std::byte* props) noexcept {
+    if (!rs || !props || !g_img_base) return false;
+    void* vt = nullptr;
+    std::byte* sample = nullptr;
+    void* svt = nullptr;
+    std::byte* p = nullptr;
+    return fh6::safe_read(rs, vt) && vt == g_img_base + rva::kRadioStreamFmodVtbl &&
+           fh6::safe_read(rs + layout::kStreamSample, sample) && sample &&
+           fh6::safe_read(sample, svt) && svt == g_img_base + rva::kRadioSampleVtbl &&
+           fh6::safe_read(sample + layout::kSampleProps, p) && p == props;
+}
 std::string g_meta_title, g_meta_artist;       // latest from the control loop
 std::string g_written_title, g_written_artist; // what's in g_active_props now
 std::byte* g_written_props = nullptr;
@@ -200,7 +217,11 @@ bool apply_timing(std::byte* props, Original& orig) noexcept {
 void restore_timing(std::byte* props, Original& orig) noexcept {
     if (!orig.timing) return;
     int32_t* begin = nullptr;
-    if (!fh6::safe_read(props + layout::kPropMarkers, begin) || !begin) return;
+    int32_t* end   = nullptr;
+    if (!fh6::safe_read(props + layout::kPropMarkers, begin) ||
+        !fh6::safe_read(props + layout::kPropMarkers + 8, end) || !begin || end < begin ||
+        end - begin < layout::kMarkerCount)
+        return;
     fh6::seh_call([&] {
         *reinterpret_cast<int32_t*>(props + layout::kPropSampleLength) = orig.length;
         begin[layout::kMarkerStingerStart]                             = orig.markers[0];
@@ -283,6 +304,33 @@ constexpr uint8_t kCreateUnwind[] = {0x01, 0x04, 0x01, 0x00, 0x04, 0x62, 0x00, 0
 
 constexpr uint8_t kOperatorNewPrologue[] = {0x48, 0x89, 0x5C, 0x24, 0x08,
                                             0x57, 0x48, 0x83, 0xEC, 0x20};
+std::byte* build_stubs(std::byte* image_base) noexcept {
+    std::byte* page = alloc_near(image_base, 0x1000);
+    if (!page) return nullptr;
+    std::byte* unwind = page + 0x80;
+    auto* rtf         = reinterpret_cast<RUNTIME_FUNCTION*>(page + 0xC0);
+
+    std::memcpy(page, kCreateStub, sizeof(kCreateStub));
+    const void* create_entry = reinterpret_cast<const void*>(&fh2_create_sound_entry);
+    std::memcpy(page + kCreateStubCode, &create_entry, 8);
+
+    std::memcpy((page + 0x40), kJmpStub, sizeof(kJmpStub));
+    const void* sub_entry = reinterpret_cast<const void*>(&fh2_get_sub_sound_entry);
+    std::memcpy((page + 0x40) + sizeof(kJmpStub), &sub_entry, 8);
+
+    std::memcpy(unwind, kCreateUnwind, sizeof(kCreateUnwind));
+    rtf->BeginAddress      = 0;
+    rtf->EndAddress        = static_cast<DWORD>(kCreateStubCode);
+    rtf->UnwindData        = 0x80;
+    if (!RtlAddFunctionTable(rtf, 1, reinterpret_cast<DWORD64>(page)))
+        fh6::log::warn("[fh2] RtlAddFunctionTable failed (stack walks through the stub may be off)");
+
+    DWORD old = 0;
+    VirtualProtect(page, 0x1000, PAGE_EXECUTE_READ, &old);
+    FlushInstructionCache(GetCurrentProcess(), page, 0x1000);
+
+    return page;
+}
 } // namespace
 
 RadioHook& RadioHook::instance() noexcept {
@@ -331,35 +379,17 @@ bool RadioHook::install(const GameImage& img, fh6::AudioSourceManager& mgr, Sett
     g_game_new      = new_ok ? reinterpret_cast<OperatorNewFn>(img.at(rva::kOperatorNew)) : nullptr;
     if (!new_ok) fh6::log::warn("[fh2] operator new not verified; long titles will be truncated");
 
-    // Stub page within rel32 reach of the game image.
-    stub_page_ = alloc_near(img.base, 0x1000);
+    g_img_base = img.base;
+
+    // Stub page within rel32 reach of the game image (built once, even if a
+    // later patch step fails and install() is retried).
+    if (!stub_page_) stub_page_ = build_stubs(img.base);
     if (!stub_page_) {
         fh6::log::error("[fh2] could not allocate a stub page near the game image");
         return false;
     }
     create_stub_   = stub_page_;
     subsound_stub_ = stub_page_ + 0x40;
-    std::byte* unwind = stub_page_ + 0x80;
-    auto* rtf         = reinterpret_cast<RUNTIME_FUNCTION*>(stub_page_ + 0xC0);
-
-    std::memcpy(create_stub_, kCreateStub, sizeof(kCreateStub));
-    const void* create_entry = reinterpret_cast<const void*>(&fh2_create_sound_entry);
-    std::memcpy(create_stub_ + kCreateStubCode, &create_entry, 8);
-
-    std::memcpy(subsound_stub_, kJmpStub, sizeof(kJmpStub));
-    const void* sub_entry = reinterpret_cast<const void*>(&fh2_get_sub_sound_entry);
-    std::memcpy(subsound_stub_ + sizeof(kJmpStub), &sub_entry, 8);
-
-    std::memcpy(unwind, kCreateUnwind, sizeof(kCreateUnwind));
-    rtf->BeginAddress      = 0;
-    rtf->EndAddress        = static_cast<DWORD>(kCreateStubCode);
-    rtf->UnwindData        = 0x80;
-    if (!RtlAddFunctionTable(rtf, 1, reinterpret_cast<DWORD64>(stub_page_)))
-        fh6::log::warn("[fh2] RtlAddFunctionTable failed (stack walks through the stub may be off)");
-
-    DWORD old = 0;
-    VirtualProtect(stub_page_, 0x1000, PAGE_EXECUTE_READ, &old);
-    FlushInstructionCache(GetCurrentProcess(), stub_page_, 0x1000);
 
     // getSubSound first: it's a no-op for vanilla sounds, so it's safe to
     // have it live before the createSound substitution starts.
@@ -400,6 +430,10 @@ void RadioHook::push_metadata(std::string_view title, std::string_view artist) n
 
     std::byte* props = g_active_props.load(std::memory_order_acquire);
     if (!props || !settings_ || !settings_->get().show_metadata) return;
+    if (!props_still_live(g_active_rs.load(std::memory_order_acquire), props)) {
+        g_active_props.store(nullptr, std::memory_order_release);
+        return;
+    }
     if (props == g_written_props && g_written_title == title && g_written_artist == artist) return;
 
     const bool ok = write_string(props + layout::kPropDisplayName, title) &&
@@ -415,6 +449,7 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
     const auto passthrough = [&] { return g_create_sound(system, name, mode, exinfo, out); };
     if (!settings_ || !mgr_) return passthrough();
 
+    bool created = false; // a substitute stream is already in *out
     try {
         const uint64_t n = stats_.loads_seen.fetch_add(1, std::memory_order_relaxed) + 1;
 
@@ -422,7 +457,9 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
         void* vt = nullptr;
         if (rs && fh6::safe_read(rs, vt) && vt == img_.at(rva::kRadioStreamFmodVtbl)) {
             std::byte* sample = nullptr;
+            void* svt = nullptr;
             if (fh6::safe_read(rs + layout::kStreamSample, sample) && sample &&
+                fh6::safe_read(sample, svt) && svt == img_.at(rva::kRadioSampleVtbl) &&
                 fh6::safe_read(sample + layout::kSampleProps, info.props) && info.props) {
                 info.sound_name = read_str(info.props + layout::kPropSoundName);
                 info.event_name = read_str(info.props + layout::kPropEventName);
@@ -471,6 +508,7 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
                 fmod::OPENUSER | fmod::CREATESTREAM | fmod::LOOP_OFF | fmod::NONBLOCKING | keep_dim,
                 ex, out);
             if (r == fmod::kOk) {
+                created = true;
                 stats_.muted.fetch_add(1, std::memory_order_relaxed);
                 return r;
             }
@@ -495,6 +533,11 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
             fh6::log::warn("[fh2] user stream failed (FMOD_RESULT {}); playing original", r);
             return passthrough();
         }
+        created = true;
+
+        // The station clock may ask tryStart to seek the event deep into the
+        // (now 4 h) track; our stream is live, so always start at 0.
+        fh6::seh_call([&] { *reinterpret_cast<int32_t*>(rs + layout::kStreamStartMs) = 0; });
 
         {
             std::scoped_lock lk{g_mu};
@@ -525,6 +568,7 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
                 g_written_props  = info.props;
                 g_written_title  = title;
                 g_written_artist = artist;
+                g_active_rs.store(rs, std::memory_order_release);
                 g_active_props.store(info.props, std::memory_order_release);
             } else {
                 restore_meta(info.props, orig);
@@ -537,7 +581,7 @@ uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mod
                        stations_ ? stations_->name_of(info.station) : std::string{}, gen);
         return r;
     } catch (...) {
-        return passthrough();
+        return created ? fmod::kOk : passthrough();
     }
 }
 
