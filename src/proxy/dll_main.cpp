@@ -39,6 +39,54 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
     return TRUE;
 }
 
+namespace {
+
+// ---- the Mods page (Pause > Settings > MODS, platform 2.3.0 / API 4) ----------------------
+// The [takeover] switches of fh2.ini, as On/Off rows. The radio rereads fh2.ini while it
+// plays, so a change (saved there straight away) applies from the next song the game loads.
+struct ModsRow {
+    const char* key;        // also the key in fh2.ini [takeover]
+    int def;
+    const char* label;
+    const char* description;
+};
+const ModsRow kModsRows[] = {
+    {"enabled", 1, "Universal Radio",
+     "Your music (Spotify, local files, online radio and the rest) plays on the taken-over station. Off leaves every station as the game has it. "
+     "Applies from the next song; switch station away and back to hear it now."},
+    {"mute_dj", 1, "Mute the DJ", "Silences the DJ and the station jingles on the taken-over station."},
+    {"extend_tracks", 1, "Longer radio tracks",
+     "The game changes its own track every 16 minutes instead of every few, which keeps tiny hiccups in your music to a minimum."},
+    {"show_metadata", 1, "Song names on the radio display", "Shows your song's title and artist where the game shows the radio's."},
+};
+std::wstring g_ini;
+
+void mods_row_changed(void* user, const char*, int value) {
+    const auto* r = static_cast<const ModsRow*>(user);
+    wchar_t key[32];
+    MultiByteToWideChar(CP_UTF8, 0, r->key, -1, key, 32);
+    WritePrivateProfileStringW(L"takeover", key, value ? L"1" : L"0", g_ini.c_str());
+}
+
+void add_mods_rows(const FH2ModApi* api, FH2Mod* mod) {
+    if (api->api_version < 4) return;   // an older platform: no Mods page
+    for (const ModsRow& r : kModsRows) {
+        wchar_t key[32];
+        MultiByteToWideChar(CP_UTF8, 0, r.key, -1, key, 32);
+        FH2Setting s{};
+        s.size        = sizeof s;
+        s.key         = r.key;
+        s.label       = r.label;
+        s.description = r.description;
+        s.value       = GetPrivateProfileIntW(L"takeover", key, r.def, g_ini.c_str()) != 0;
+        s.on_change   = mods_row_changed;
+        s.user        = const_cast<ModsRow*>(&r);
+        api->add_setting(mod, &s);
+    }
+}
+
+} // namespace
+
 FH2MOD_EXPORT int fh2mod_init(const FH2ModApi* api) {
     if (!api || api->api_version < 1) return 1;
     const std::wstring ini = std::wstring{api->azimuth_dir} + L"\\fh2-radio\\fh2.ini";
@@ -55,5 +103,7 @@ FH2MOD_EXPORT int fh2mod_init(const FH2ModApi* api) {
     // Other mods can ask what's playing (include/fh2universalradio.h).
     if (api->api_version >= 2)
         api->publish_interface(mod, FH2_RADIO_NOW_PLAYING, 1, fh2::now_playing_interface());
+    g_ini = ini;
+    add_mods_rows(api, mod);
     return 0;
 }

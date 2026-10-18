@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 # Bump VERSION before tagging a release (the tag build checks they match).
-project(fh2_universal_radio VERSION 1.5.0 LANGUAGES C CXX RC)
+project(fh2_universal_radio VERSION 1.6.0 LANGUAGES C CXX RC)
 configure_file(cmake/version.h.in ${CMAKE_BINARY_DIR}/generated/fh2_version.h)
 
 set(CMAKE_CXX_STANDARD 20)

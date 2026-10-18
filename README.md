@@ -44,6 +44,8 @@ The FH2-specific settings are in `fh2-radio\fh2.ini`, which is created the first
 
 The other options are on by default. `mute_dj` silences the DJ and jingles, `show_metadata` puts your song info in the HUD, and `extend_tracks` makes the game change its internal track every 16 minutes instead of every few, which keeps tiny hiccups in your music to a minimum. Changes are picked up while the game is running. Tune away from the station and back to apply them straight away.
 
+With FH2 Mod Platform 2.3.0 or later, the on/off ones (`enabled`, `mute_dj`, `extend_tracks` and `show_metadata`) are also in the game, under Pause > Settings > MODS, and changing them there saves them to `fh2.ini` too. The station is picked in the ini.
+
 Everything else, like sources, volume and local music folders, is set from the dashboard just like in FH6 Universal Radio.
 
 ### Updates

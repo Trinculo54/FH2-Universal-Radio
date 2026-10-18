@@ -58,7 +58,8 @@ FH2 settings (fh2-radio\fh2.ini)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Written on first launch; edits apply live (switch the in-game station
-away and back to apply immediately).
+away and back to apply immediately). The on/off switches below are also
+in the game, under Pause > Settings > MODS.
 
   station=1         which station is taken over (1-7, 0 = all of them)
                       1 Horizon Pulse     2 Bass Arena       3 Horizon XS
