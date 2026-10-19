@@ -28,7 +28,8 @@ constexpr uint32_t kSoundGetUserData = 0x0199FBE0u;
 // RadioStreamFmod::load(sample, ...) -> FMOD::System::createSound(
 //     soundinfo.name_or_data, soundinfo.mode | NONBLOCKING | CREATESTREAM,
 //     &soundinfo.exinfo, &this->sound)
-// `rdi` holds the RadioStreamFmod* at this call.
+// The last argument is &this->sound, so the RadioStreamFmod* is that
+// minus layout::kStreamSound (`rdi` holds it too).
 constexpr uint32_t kTrackCreateSoundCall = 0x01018A13u;
 // RadioStreamFmod::tryStart() -> FMOD::Sound::getSubSound(
 //     userdata->subsound_index, &userdata->subsound)
