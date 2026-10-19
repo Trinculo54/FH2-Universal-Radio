@@ -18,10 +18,10 @@
 #include "fh6/sources/spotify_source.hpp"
 #include "fh6/worker/worker_client.hpp"
 #include "fh6/sources/online_radio_source.hpp"
+#include "fh6/subprocess.hpp"
 
 #include <windows.h>
 #include <array>
-#include <cwctype>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -32,35 +32,6 @@
 namespace fh6 {
 
 namespace {
-
-// The Azimuth folder. The plugin lives in <Azimuth>\fh2-mods\, so step up
-// out of that; a DLL sitting right next to azimuth.exe is used as-is.
-std::filesystem::path module_directory(HMODULE self) {
-    wchar_t buf[MAX_PATH];
-    DWORD n = GetModuleFileNameW(self, buf, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return {};
-    auto dir = std::filesystem::path{buf}.parent_path();
-    std::wstring leaf = dir.filename().wstring();
-    for (auto& c : leaf) c = static_cast<wchar_t>(std::towlower(c));
-    if (leaf == L"fh2-mods") dir = dir.parent_path();
-    return dir;
-}
-
-bool host_is_game(const std::filesystem::path& dll_dir) {
-    wchar_t buf[MAX_PATH];
-    DWORD n = GetModuleFileNameW(nullptr, buf, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return false;
-    const std::filesystem::path exe{std::wstring_view{buf, n}};
-
-    std::error_code ec;
-    if (!std::filesystem::equivalent(exe.parent_path(), dll_dir, ec)) return false;
-
-    // Azimuth hosts the Durango exe inside azimuth.exe; Mezcal runs the
-    // game exe directly.
-    std::wstring name = exe.filename().wstring();
-    for (wchar_t& c : name) c = static_cast<wchar_t>(std::towlower(c));
-    return name == L"azimuth.exe" || name == L"forza_durango_release_final.exe";
-}
 
 SpotifyConfig anchor_spotify(SpotifyConfig sp, const std::filesystem::path& data_dir) {
     if (!sp.cache_dir.empty() && sp.cache_dir.is_relative()) sp.cache_dir = data_dir / sp.cache_dir;
@@ -119,32 +90,42 @@ bool verify_ui_credits(const std::filesystem::path& ui_dir) {
 
 } // namespace
 
-void run_bridge(HMODULE self) noexcept {
-    const auto dir = module_directory(self);
-    if (!host_is_game(dir)) return; // never spawn a bridge outside the game itself
-
+// The folders come from FH2ML (src/proxy/dll_main.cpp): azimuth_dir has
+// azimuth.exe, mod_dir is the installed mod (mods\universalradio: ui\, the
+// worker, config.example.toml; read-only, replaced on every update), data_dir
+// is the player's (FH2ML\data\universalradio: fh2.ini, config.toml, logs, the
+// Spotify login, downloaded helpers; kept across updates).
+void run_bridge(const std::filesystem::path& azimuth_dir, const std::filesystem::path& mod_dir,
+                const std::filesystem::path& data_dir) noexcept {
     if (HANDLE guard = CreateMutexW(nullptr, TRUE, L"Local\\fh2-universal-radio-bridge");
         guard && GetLastError() == ERROR_ALREADY_EXISTS) {
         CloseHandle(guard);
         return;
     }
 
-    const auto data_dir = dir / "fh2-radio";
     std::error_code ec;
     std::filesystem::create_directories(data_dir, ec);
 
     log::init(data_dir / "bridge.log");
-    log::info("[bridge] FH2 Universal Radio {} starting; data_dir={}", FH2_RADIO_VERSION, data_dir.string());
+    subprocess::set_log_directory(data_dir);
+    log::info("[bridge] FH2 Universal Radio {} starting; mod_dir={} data_dir={}", FH2_RADIO_VERSION,
+              mod_dir.string(), data_dir.string());
 
-    // Update notices come from the FH2 Mod Platform (see proxy/dll_main.cpp).
+    // Update notices come from FH2ML (the descriptor in proxy/dll_main.cpp).
 
-    const auto ui_dir = data_dir / "ui";
+    const auto ui_dir = mod_dir / "ui";
     if (!verify_ui_credits(ui_dir)) {
         log::error("[bridge] aborting startup: webui credits/donation links check failed");
         return;
     }
 
-    ConfigStore store{data_dir / "config.toml", load_config(data_dir / "config.toml")};
+    // First launch: start from the example config the mod ships with.
+    const auto config_file = data_dir / "config.toml";
+    if (!std::filesystem::exists(config_file, ec) &&
+        std::filesystem::copy_file(mod_dir / "config.example.toml", config_file, ec))
+        log::info("[bridge] config.toml seeded from config.example.toml");
+
+    ConfigStore store{config_file, load_config(config_file)};
     auto cfg = store.snapshot();
 
     const std::size_t ring_bytes = static_cast<std::size_t>(cfg.general.ring_buffer_mb) << 20;
@@ -157,9 +138,10 @@ void run_bridge(HMODULE self) noexcept {
     // game's multi-GB page table.  Falls back to direct spawn if absent.
     auto worker = std::make_shared<worker::WorkerClient>();
     {
-        auto worker_exe = data_dir / "fh2-radio-worker.exe";
+        auto worker_exe = mod_dir / "fh2-radio-worker.exe";
 
-        if (worker->start(worker_exe, {{L"RUST_LOG", L"librespot=info,librespot_playback::player=debug,librespot_metadata=trace"}})) {
+        if (worker->start(worker_exe, {{L"RUST_LOG", L"librespot=info,librespot_playback::player=debug,librespot_metadata=trace"},
+                                       {L"FH2_RADIO_DATA_DIR", data_dir.wstring()}})) {
             log::info("[bridge] worker process started");
         } else {
             log::warn("[bridge] worker process unavailable -- falling back to direct spawn");
@@ -237,7 +219,7 @@ void run_bridge(HMODULE self) noexcept {
     bridge.set_gain(cfg.audio.output_gain);
 
     // Waits for Azimuth to map FH2, patches the radio, then pumps audio.
-    auto ctrl = std::make_unique<fh2::ControlLoop>(mgr, data_dir, dir, cfg.audio.output_gain);
+    auto ctrl = std::make_unique<fh2::ControlLoop>(mgr, data_dir, azimuth_dir, cfg.audio.output_gain);
 
     for (auto* s : mgr.sources_snapshot()) s->set_playback_options(cfg.playback);
 

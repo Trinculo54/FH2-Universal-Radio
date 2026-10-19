@@ -429,6 +429,12 @@ int main(int argc, char** argv) {
     g_token    = widen(argv[1]);
     g_pipe_sa  = make_pipe_sa();
 
+    // helpers.log goes in the mod's data folder, which the DLL hands us
+    // (the worker itself is installed in mods\universalradio).
+    static wchar_t data_dir[32768];
+    const DWORD n = GetEnvironmentVariableW(L"FH2_RADIO_DATA_DIR", data_dir, 32768);
+    if (n > 0 && n < 32768) set_log_directory(data_dir);
+
     // Self-terminate (taking our children with us) if the game/DLL dies without
     // a clean shutdown, so a crash never leaves yt-dlp/ffmpeg orphaned.
     if (argc >= 3) {

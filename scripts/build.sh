@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-# Cross-compiles the d3dcompiler_47.dll proxy (FH2 / Azimuth) from Linux via
-# llvm-mingw, then stages everything that needs to ship in dist/.
+# Cross-compiles FH2 Universal Radio, an FH2ML v4 mod, from Linux via
+# llvm-mingw, then stages the mod's package in dist/.
 #
 #   $ scripts/build.sh
 #
-# Output mirrors scripts/build.ps1:
-#   dist/d3dcompiler_47.dll     the FH2 Mod Platform (drops next to azimuth.exe)
-#   dist/fh2-mods/FH2UniversalRadio.dll  the radio mod
-#   dist/fh2-radio/ui/          dashboard
-#   dist/fh2-radio/config.toml  seeded from config.example.toml
-#   dist/README.txt             same end-user blurb as the Windows build
+# Output mirrors scripts/build.ps1. dist/ holds mods/universalradio/, so a zip
+# of it extracts straight into the Azimuth folder (or goes to the FH2ML
+# Manager's Install mod):
+#   mod.json                FH2ML's manifest, with the build's version
+#   FH2UniversalRadio.dll   the radio
+#   fh2-radio-worker.exe    starts the helper programs outside the game
+#   ui/                     dashboard (served at http://localhost:8420)
+#   assets/                 default artwork
+#   config.example.toml     copied to FH2ML/data/universalradio/config.toml
+#                           on the first launch
+#   README.txt, LICENSE.txt
 #
 # Env vars:
 #   PATH            must contain x86_64-w64-mingw32-clang++; if your llvm-mingw
@@ -38,12 +43,8 @@ EOF
     exit 1
 fi
 
-if [ ! -f "$root/platform/CMakeLists.txt" ]; then
-    git -C "$root" submodule update --init platform
-fi
-
 if [ ! -f "$root/third_party/nlohmann/nlohmann/json.hpp" ]; then
-    printf '\033[33mthird_party/ is empty, running get-deps.sh first.\033[0m\n'
+    printf '\033[33mthird_party/ has no downloaded headers yet, running get-deps.sh first.\033[0m\n'
     "$root/scripts/get-deps.sh"
 fi
 
@@ -61,21 +62,18 @@ if [ ! -f "$root/assets/default_artwork.png" ]; then
     exit 1
 fi
 
+pkg=$dist/mods/universalradio
 rm -rf "$dist"
-mkdir -p "$dist/fh2-radio"
+mkdir -p "$pkg/assets"
 
-cp "$build/platform/d3dcompiler_47.dll" "$dist/"
-mkdir -p "$dist/fh2-mods"
-cp "$build/FH2UniversalRadio.dll"  "$dist/fh2-mods/"
-cp "$build/fh2-radio-worker.exe"   "$dist/fh2-radio/"
-mkdir -p "$dist/fh2-radio/assets"
-cp "$root/assets/default_artwork.png" "$dist/fh2-radio/assets/default_artwork.png"
-cp -r "$root/ui/dist"              "$dist/fh2-radio/ui"
-cp "$root/config.example.toml"     "$dist/fh2-radio/config.toml"
-
-cp "$root/scripts/dist-readme.txt" "$dist/README.txt"
-# The platform includes MinHook (BSD 2-Clause), whose notice ships with it.
-cp "$root/platform/third_party/minhook/LICENSE.txt" "$dist/LICENSE-MinHook.txt"
+cp "$build/mod.json"                  "$pkg/"
+cp "$build/FH2UniversalRadio.dll"     "$pkg/"
+cp "$build/fh2-radio-worker.exe"      "$pkg/"
+cp -r "$root/ui/dist"                 "$pkg/ui"
+cp "$root/assets/default_artwork.png" "$pkg/assets/default_artwork.png"
+cp "$root/config.example.toml"        "$pkg/"
+cp "$root/scripts/dist-readme.txt"    "$pkg/README.txt"
+cp "$root/LICENSE"                    "$pkg/LICENSE.txt"
 
 printf '\n\033[32mBuilt + staged in %s\033[0m\n' "$dist"
 (cd "$dist" && find . -type f -printf '  %P\n')

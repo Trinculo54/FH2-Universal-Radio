@@ -1,18 +1,22 @@
 /*
  * fh2universalradio.h -- what FH2 Universal Radio offers other FH2 mods
- * (MIT, like the FH2 Mod Platform API).
+ * (MIT, like FH2ML's SDK headers).
  *
- * FH2 Universal Radio publishes this through the FH2 Mod Platform (API 2
- * and up). From your mod, on your own thread:
+ * FH2 Universal Radio (mod ID "universalradio") publishes this from its
+ * Initialize, as an FH2ML v4 interface (FH2ML_v4.h). From your v4 mod, on
+ * your own thread (S being your FH2ML_Services_v4):
  *
- *     if (api->api_version >= 2 && api->wait_for_mods(30000)) {
+ *     if (S->WaitForMods(30000)) {
  *         const FH2RadioNowPlayingV1* radio = (const FH2RadioNowPlayingV1*)
- *             api->get_interface(FH2_RADIO_NOW_PLAYING, 1);
+ *             S->GetInterface(FH2_RADIO_NOW_PLAYING, 1);
  *         if (radio) { ... }
  *     }
  *
- * It's updated twice a second. Every function is thread-safe. Members are
- * only ever added at the end; check `size`.
+ * (Or, if your mod can't do without the radio, list "universalradio" under
+ * "dependencies" in your mod.json and look it up straight from your
+ * Initialize.) It's updated twice a second. Every
+ * function is thread-safe. Members are only ever added at the end; check
+ * `size`.
  */
 #ifndef FH2UNIVERSALRADIO_H
 #define FH2UNIVERSALRADIO_H

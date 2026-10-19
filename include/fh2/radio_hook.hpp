@@ -2,7 +2,7 @@
 
 #include "fh2/game_image.hpp"
 #include "fh2/settings.hpp"
-#include "fh2mod.h"
+#include "FH2ML_v4.h"
 
 #include <atomic>
 #include <cstdint>
@@ -51,10 +51,10 @@ public:
     bool installed() const noexcept { return installed_.load(std::memory_order_acquire); }
 
     // Re-applies a patch if something rewrote the call site. Cheap. (Not
-    // needed, and does nothing, when the platform made the patches.)
+    // needed, and does nothing, when FH2ML made the patches.)
     void verify() noexcept;
-    // True if the patches are platform hooks (platform 2.2+), not our own.
-    bool via_platform() const noexcept { return via_platform_; }
+    // True if the patches are FH2ML hooks, not our own.
+    bool via_fh2ml() const noexcept { return via_fh2ml_; }
 
     float gain() const noexcept { return gain_.load(std::memory_order_acquire); }
     void set_gain(float g) noexcept { gain_.store(g, std::memory_order_release); }
@@ -91,12 +91,12 @@ private:
     RadioStats stats_;
 
     std::byte* stub_page_       = nullptr;
-    bool via_platform_          = false;
-    bool platform_refused_      = false;
-    FH2Hook* platform_sub_      = nullptr;
-    FH2Hook* platform_create_   = nullptr;
-    void* platform_orig_sub_    = nullptr; // what the hooks' `original`s are
-    void* platform_orig_create_ = nullptr;
+    bool via_fh2ml_             = false;
+    bool fh2ml_refused_         = false;
+    FH2ML_Hook* fh2ml_sub_      = nullptr;
+    FH2ML_Hook* fh2ml_create_   = nullptr;
+    void* fh2ml_orig_sub_       = nullptr; // what the hooks' `original`s are
+    void* fh2ml_orig_create_    = nullptr;
     std::byte* create_stub_     = nullptr;
     std::byte* subsound_stub_   = nullptr;
 };

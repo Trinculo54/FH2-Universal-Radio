@@ -8,14 +8,15 @@
 //
 //   fh2_hook_test.exe <path to forza_durango_release_final.exe> [RadioInfo_EN.xml]
 //
-// With FH2_TEST_PLATFORM=1 it runs as azimuth.exe next to the real FH2 Mod
-// Platform (d3dcompiler_47.dll) and fh2-mods\RadioShim.dll, which hands it
-// the platform's API, so the call sites are patched as platform hooks and
-// every game call goes through the platform's stubs (tests/run_platform_hook_test.sh).
+// With FH2_TEST_FH2ML=1 the radio gets a stand-in for FH2ML's services (below),
+// so the call sites are patched the way they are in the game: through HookCall
+// and EnableHooks, with every passthrough call going on through the hooks'
+// `original`s. Without it, the radio has no services and patches the call sites
+// itself (tests/run_hook_test.sh runs both).
 
 #include "fh2/game_image.hpp"
 #include "fh2/offsets.hpp"
-#include "fh2/platform_link.hpp"
+#include "fh2/fh2ml_link.hpp"
 #include "fh2/radio_hook.hpp"
 #include "fh2/settings.hpp"
 #include "fh6/audio_source_manager.hpp"
@@ -225,8 +226,57 @@ static uint32_t call_like_game(std::byte* stub, std::byte* rs, void* system, con
 
 using PcmRead = uint32_t (*)(void*, void*, uint32_t);
 
-extern "C" __declspec(dllexport) void fh2_test_set_platform(const FH2ModApi* api, FH2Mod* mod) {
-    set_platform(api, mod);
+// ---- a stand-in for FH2ML's hook services --------------------------------------
+// Like FH2ML's HookCall, each call site gets a jump within reach of the game (a
+// CALL rel32 can't reach this exe), `original` is what the call called, and the
+// hook is made switched off; EnableHooks retargets the call at the jump.
+struct FakeHook {
+    std::byte* site;
+    const std::byte* original;
+    std::byte* jump;
+};
+static std::vector<FakeHook*> g_fake_hooks;
+static int g_fake_enables = 0;
+static std::byte* g_fake_game = nullptr;
+static int g_fake_mod_storage;
+
+static void fake_log(FH2ML_Mod*, const char* line) { std::printf("FH2ML: %s\n", line); }
+static void* fake_wait_for_code(uint32_t) { return g_fake_game; }
+static FH2ML_Hook* fake_hook_call(FH2ML_Mod*, const char* name, void* call_site, void* detour, void** original) {
+    auto* site = static_cast<std::byte*>(call_site);
+    const std::byte* target = call_target(site);
+    std::byte* jump = target ? alloc_near(g_fake_game, 0x1000) : nullptr;
+    if (!jump) return nullptr;
+    write_jmp(jump, detour);
+    auto* h = new FakeHook{site, target, jump};
+    g_fake_hooks.push_back(h);
+    *original = const_cast<std::byte*>(target);
+    std::printf("FH2ML: hooked call %s\n", name ? name : "?");
+    return reinterpret_cast<FH2ML_Hook*>(h);
+}
+static int fake_enable_hooks(FH2ML_Mod*, FH2ML_Hook* hook) {
+    ++g_fake_enables;
+    for (FakeHook* h : g_fake_hooks) {
+        if (hook && reinterpret_cast<FH2ML_Hook*>(h) != hook) continue;
+        if (call_target(h->site) != h->jump && !patch_call(h->site, h->original, h->jump)) return 0;
+    }
+    return 1;
+}
+static int fake_disable_hooks(FH2ML_Mod*, FH2ML_Hook*) { return 0; }
+
+static FH2ML_Services_v4 make_fake_services() {
+    FH2ML_Services_v4 s{};
+    s.size              = sizeof s;
+    s.version           = FH2ML_API_VERSION_V4;
+    s.runtime_version   = "test";
+    s.azimuth_directory = L"";
+    s.game_directory    = L"";
+    s.Log               = fake_log;
+    s.WaitForCode       = fake_wait_for_code;
+    s.HookCall          = fake_hook_call;
+    s.EnableHooks       = fake_enable_hooks;
+    s.DisableHooks      = fake_disable_hooks;
+    return s;
 }
 
 int main(int argc, char** argv) {
@@ -241,8 +291,7 @@ int main(int argc, char** argv) {
     fh6::log::init(dir + "\\test.log");
 
     char env[8]{};
-    const bool with_platform = GetEnvironmentVariableA("FH2_TEST_PLATFORM", env, sizeof env) && env[0] == '1';
-    if (with_platform) CHECK(LoadLibraryW(L"d3dcompiler_47.dll") != nullptr); // as azimuth.exe does
+    const bool with_fh2ml = GetEnvironmentVariableA("FH2_TEST_FH2ML", env, sizeof env) && env[0] == '1';
 
     std::byte* mapped = map_image(argv[1]);
     CHECK(mapped != nullptr);
@@ -275,16 +324,20 @@ int main(int argc, char** argv) {
 
     fh6::AudioSourceManager mgr{1 << 20};
     auto& hook = RadioHook::instance();
-    if (with_platform) {
-        CHECK(wait_for_platform(10000) != nullptr && platform_v3() != nullptr);
-        bool ok = false; // the platform says when the game is ready to hook
-        for (int i = 0; i < 200 && !ok; ++i)
-            if (!(ok = hook.install(img, mgr, settings, stations))) Sleep(50);
-        CHECK(ok);
-        CHECK(hook.via_platform());
-    } else {
+    static const FH2ML_Services_v4 fake = make_fake_services();
+    if (with_fh2ml) {
+        set_services(&fake, reinterpret_cast<FH2ML_Mod*>(&g_fake_mod_storage));
+        CHECK(services() == &fake);
+        CHECK(!hook.install(img, mgr, settings, stations)); // the game isn't ready to hook yet
+        CHECK(g_fake_hooks.empty());
+        g_fake_game = img.base;
         CHECK(hook.install(img, mgr, settings, stations));
-        CHECK(!hook.via_platform());
+        CHECK(hook.via_fh2ml());
+        CHECK(g_fake_hooks.size() == 2 && g_fake_enables == 1);
+    } else {
+        CHECK(services() == nullptr);
+        CHECK(hook.install(img, mgr, settings, stations));
+        CHECK(!hook.via_fh2ml());
     }
 
     std::byte* create_site = img.at(rva::kTrackCreateSoundCall);

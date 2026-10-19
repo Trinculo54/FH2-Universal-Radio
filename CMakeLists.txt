@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 # Bump VERSION before tagging a release (the tag build checks they match).
-project(fh2_universal_radio VERSION 1.7.1 LANGUAGES C CXX RC)
+project(fh2_universal_radio VERSION 1.8.0 LANGUAGES C CXX RC)
 configure_file(cmake/version.h.in ${CMAKE_BINARY_DIR}/generated/fh2_version.h)
+# FH2ML's manifest for mods\universalradio, with the same version as the DLL's
+# descriptor (FH2_RADIO_VERSION below) and its version resource.
+configure_file(cmake/mod.json.in ${CMAKE_BINARY_DIR}/mod.json @ONLY)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -44,11 +47,8 @@ else()
     add_link_options(-static)
 endif()
 
-# The FH2 Mod Platform (git submodule): d3dcompiler_47.dll, shipped next
-# to azimuth.exe, and fh2mod.h.
-add_subdirectory(platform)
-
-# The radio itself: fh2-mods\FH2UniversalRadio.dll.
+# The radio itself, an FH2ML v4 mod: mods\universalradio\FH2UniversalRadio.dll.
+# FH2ML's API is the one vendored header in third_party/fh2ml.
 add_library(fh2radio SHARED
     src/proxy/dll_main.cpp
     src/bridge.cpp
@@ -66,7 +66,7 @@ add_library(fh2radio SHARED
     src/fh2/radio_hook.cpp
     src/fh2/control_loop.cpp
     src/fh2/now_playing.cpp
-    src/fh2/platform_link.cpp
+    src/fh2/fh2ml_link.cpp
     src/http/http_server.cpp
     src/sources/local_file_source.cpp
     src/sources/youtube_music_source.cpp
@@ -83,13 +83,14 @@ target_compile_definitions(fh2radio PRIVATE FH2_RADIO_VERSION="${PROJECT_VERSION
 target_include_directories(fh2radio PRIVATE
     include
     ${CMAKE_BINARY_DIR}/generated
+    third_party/fh2ml
     third_party/nlohmann
     third_party/toml11
     third_party/miniaudio
     third_party/stb
 )
 
-target_link_libraries(fh2radio PRIVATE fh2mod_api ws2_32 bcrypt psapi winhttp ole32 uuid ksuser runtimeobject)
+target_link_libraries(fh2radio PRIVATE ws2_32 bcrypt psapi winhttp ole32 uuid ksuser runtimeobject)
 
 set_target_properties(fh2radio PROPERTIES
     OUTPUT_NAME FH2UniversalRadio
@@ -125,14 +126,10 @@ if(FH2_TESTS)
         src/fh2/game_image.cpp
         src/fh2/settings.cpp
         src/fh2/radio_hook.cpp
-        src/fh2/platform_link.cpp
+        src/fh2/fh2ml_link.cpp
         src/log.cpp
         src/ring_buffer.cpp
         src/audio_source_manager.cpp
     )
-    target_include_directories(fh2_hook_test PRIVATE include)
-    target_link_libraries(fh2_hook_test PRIVATE fh2mod_api)
-    add_library(radio_shim SHARED tests/platform_shim.cpp)
-    target_link_libraries(radio_shim PRIVATE fh2mod_api)
-    set_target_properties(radio_shim PROPERTIES OUTPUT_NAME RadioShim PREFIX "")
+    target_include_directories(fh2_hook_test PRIVATE include third_party/fh2ml)
 endif()

@@ -1,9 +1,11 @@
 name: Build
 
-# Every push and pull request builds the mod and uploads dist/ as an
-# artifact. Pushing a version tag (v1.1.0, ...) also attaches
-# FH2-Universal-Radio-<tag>.zip to the release with that name (a new draft
-# if there isn't one yet), unless a zip is already attached.
+# Every push and pull request builds the mod and uploads dist/ (the FH2ML
+# package, mods/universalradio/) as an artifact. Pushing a version tag
+# (v1.1.0, ...) also attaches FH2-Universal-Radio-<tag>.zip, which extracts
+# into the Azimuth folder or installs with the FH2ML Manager, to the release
+# with that name (a new draft if there isn't one yet), unless a zip is
+# already attached.
 
 on:
   push:
@@ -26,7 +28,6 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-          submodules: true
 
       - name: Install llvm-mingw + ninja
         run: |

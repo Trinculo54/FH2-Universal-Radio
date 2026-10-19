@@ -1,0 +1,8 @@
+{
+  "id": "universalradio",
+  "name": "FH2 Universal Radio",
+  "version": "@PROJECT_VERSION@",
+  "author": "Trinculo54",
+  "entry": "FH2UniversalRadio.dll",
+  "enabled": true
+}

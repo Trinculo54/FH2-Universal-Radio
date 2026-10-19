@@ -8,9 +8,9 @@
 
 namespace fh2 {
 
-// fh2-radio\fh2.ini -- the FH2-specific knobs. Re-read whenever the file
-// changes, so edits apply without restarting the game (on the next track
-// the game loads).
+// FH2ML\data\universalradio\fh2.ini -- the FH2-specific knobs. Re-read
+// whenever the file changes, so edits apply without restarting the game (on
+// the next track the game loads).
 struct Settings {
     bool enabled          = true;
     int takeover_station  = 1; // 1..7, 0 = every station

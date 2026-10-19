@@ -1,4 +1,5 @@
 /dist
 /build
-/third_party
+/third_party/*
+!/third_party/fh2ml
 /node_modules

@@ -95,23 +95,22 @@ HANDLE open_nul(DWORD access) {
     return h == INVALID_HANDLE_VALUE ? nullptr : h;
 }
 
-// Helper-process output (librespot, ffmpeg, yt-dlp). Lives in the mod's
-// fh2-radio folder so it's easy to find and send: the DLL sits next to
-// azimuth.exe (-> fh2-radio\helpers.log), the worker exe sits inside
-// fh2-radio already. Trimmed at first use each run if it grows past 4 MB.
+namespace {
+std::filesystem::path g_log_dir;
+} // namespace
+
+void set_log_directory(const std::filesystem::path& dir) { g_log_dir = dir; }
+
+// Helper-process output (librespot, ffmpeg, yt-dlp). Lives in the mod's data
+// folder (FH2ML\data\universalradio\helpers.log) so it's easy to find and
+// send: the DLL sets it from FH2ML's data_directory, the worker from what the
+// DLL hands it. Trimmed at first use each run if it grows past 4 MB.
 std::filesystem::path stderr_log_path() {
     static const std::filesystem::path path = [] {
         namespace fs = std::filesystem;
-        HMODULE self = nullptr;
-        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                           reinterpret_cast<LPCWSTR>(&stderr_log_path), &self);
-        wchar_t buf[MAX_PATH]{};
-        const DWORD n = GetModuleFileNameW(self, buf, MAX_PATH);
-        fs::path dir  = (n && n < MAX_PATH) ? fs::path{buf}.parent_path() : fs::temp_directory_path();
         std::error_code ec;
-        if (fs::is_directory(dir / "fh2-radio", ec)) dir /= "fh2-radio";
-        else if (fs::is_directory(dir.parent_path() / "fh2-radio", ec)) dir = dir.parent_path() / "fh2-radio";
+        fs::path dir = g_log_dir;
+        if (dir.empty()) dir = fs::temp_directory_path(ec);
         fs::path p = dir / "helpers.log";
         if (fs::file_size(p, ec) > (4u << 20) && !ec) fs::remove(p, ec);
         return p;

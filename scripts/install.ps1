@@ -1,10 +1,11 @@
-# Copies the built mod into an Azimuth folder (the one with azimuth.exe).
-# Run after build.ps1.
+# Copies the built mod into an Azimuth folder (the one with azimuth.exe), as
+# mods\universalradio, where FH2ML loads it. Run after build.ps1.
 #
 #   PS> .\scripts\install.ps1 -AzimuthDir "D:\Games\Azimuth"
 #
-# Existing files are backed up to *.bak before being overwritten. Your
-# config.toml, fh2.ini, Spotify login and downloaded helpers are kept.
+# The mod's folder is replaced, the way an update through the FH2ML Manager
+# replaces it. Your fh2.ini, config.toml, Spotify login and downloaded helpers
+# live in FH2ML\data\universalradio and aren't touched.
 
 param(
     [Parameter(Mandatory = $true)] [string] $AzimuthDir
@@ -12,10 +13,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$dist = Join-Path $root "dist"
+$pkg  = Join-Path $root "dist\mods\universalradio"
 
-if (-not (Test-Path (Join-Path $dist "d3dcompiler_47.dll"))) {
-    throw "dist\d3dcompiler_47.dll not found -- run scripts\build.ps1 first."
+if (-not (Test-Path (Join-Path $pkg "mod.json"))) {
+    throw "dist\mods\universalradio not found -- run scripts\build.ps1 first."
 }
 if (-not (Test-Path $AzimuthDir)) {
     throw "Azimuth directory not found: $AzimuthDir"
@@ -23,30 +24,18 @@ if (-not (Test-Path $AzimuthDir)) {
 if (-not (Test-Path (Join-Path $AzimuthDir "azimuth.exe"))) {
     Write-Warning "azimuth.exe not found in $AzimuthDir -- make sure this is the right folder."
 }
-
-function Backup-AndCopy($src, $dst) {
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dst) | Out-Null
-    if (Test-Path $dst) { Copy-Item -Force $dst "$dst.bak" }
-    Copy-Item -Force $src $dst
-    "  + $($dst.Substring($AzimuthDir.Length).TrimStart('\'))"
+if (-not (Test-Path (Join-Path $AzimuthDir "data\bin\FH2ML.Runtime.dll"))) {
+    Write-Warning "FH2ML isn't installed in $AzimuthDir yet; the radio needs it (https://github.com/Refilewski/FH2ML)."
 }
 
-# The FH2 Mod Platform (in 1.0.x this file was the whole mod), then the mod
-# itself in fh2-mods, where the loader picks it up.
-Backup-AndCopy (Join-Path $dist "d3dcompiler_47.dll") (Join-Path $AzimuthDir "d3dcompiler_47.dll") | Out-Host
-Backup-AndCopy (Join-Path $dist "fh2-mods\FH2UniversalRadio.dll") (Join-Path $AzimuthDir "fh2-mods\FH2UniversalRadio.dll") | Out-Host
-
-$dataDir = Join-Path $AzimuthDir "fh2-radio"
-New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
-Copy-Item -Recurse -Force (Join-Path $dist "fh2-radio\ui") $dataDir
-Copy-Item -Recurse -Force (Join-Path $dist "fh2-radio\assets") $dataDir
-Copy-Item -Force (Join-Path $dist "README.txt") (Join-Path $dataDir "README.txt")
-$cfg = Join-Path $dataDir "config.toml"
-if (-not (Test-Path $cfg)) {
-    Copy-Item (Join-Path $dist "fh2-radio\config.toml") $cfg
-    Write-Host "  + fh2-radio\config.toml  (seeded from example)" -ForegroundColor Yellow
+$mods = Join-Path $AzimuthDir "mods"
+$dst  = Join-Path $mods "universalradio"
+if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
+New-Item -ItemType Directory -Force -Path $mods | Out-Null
+Copy-Item -Recurse $pkg $dst
+Get-ChildItem -Recurse -File $dst | ForEach-Object {
+    "  + mods\universalradio\$($_.FullName.Substring($dst.Length + 1))"
 }
-Backup-AndCopy (Join-Path $dist "fh2-radio\fh2-radio-worker.exe") (Join-Path $dataDir "fh2-radio-worker.exe") | Out-Host
 
 Write-Host "`nDone. Launch FH2, set Audio > Radio DJ = Off and tune to Horizon Pulse." -ForegroundColor Green
 Write-Host "Then open http://localhost:8420 in any browser on this machine."

@@ -18,8 +18,10 @@ std::wstring quote(const std::wstring& s);
 // STARTF_USESTDHANDLES; NUL is a safe substitute.
 HANDLE open_nul(DWORD access);
 
-// Shared %TEMP%\fh6-stderr.log; FILE_APPEND_DATA makes writes atomic across
-// concurrent children.
+// <dir>\helpers.log, shared by every helper process; FILE_APPEND_DATA makes
+// writes atomic across concurrent children. Call set_log_directory (with the
+// mod's data folder) before the first spawn; without it the log goes to %TEMP%.
+void set_log_directory(const std::filesystem::path& dir);
 HANDLE open_stderr_log();
 std::filesystem::path stderr_log_path();
 

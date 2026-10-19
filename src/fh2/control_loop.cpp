@@ -1,6 +1,6 @@
 #include "fh2/control_loop.hpp"
 #include "fh2/now_playing.hpp"
-#include "fh2/platform_link.hpp"
+#include "fh2/fh2ml_link.hpp"
 #include "fh2/game_image.hpp"
 #include "fh2/radio_hook.hpp"
 #include "fh6/audio_source.hpp"
@@ -56,11 +56,10 @@ void ControlLoop::run(const std::stop_token& tok) {
     auto& hook = RadioHook::instance();
 
     // ---- phase 1: wait for the translation layer to map FH2, then patch ----
-    // fh2mod_init runs a moment after we're loaded; with platform 2.2+ the
-    // radio's patches are platform hooks.
-    if (const FH2ModApi* api = wait_for_platform(5000))
-        fh6::log::info("[fh2] FH2 Mod Platform {}{}", api->platform_version,
-                       platform_v3() ? "; the radio hooks go through it" : "");
+    // The radio's patches are FH2ML hooks.
+    if (const FH2ML_Services_v4* S = services())
+        fh6::log::info("[fh2] FH2ML {}; the radio hooks go through it",
+                       S->runtime_version ? S->runtime_version : "(unknown version)");
     fh6::log::info("[fh2] waiting for Forza Horizon 2 to start...");
     GameImage img{};
     int attempts = 0;

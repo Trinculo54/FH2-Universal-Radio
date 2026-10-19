@@ -2,8 +2,9 @@
 build/
 /dist/
 
-# Downloaded by scripts\get-deps.ps1
-third_party/
+# Downloaded by scripts\get-deps.ps1 (third_party/fh2ml is vendored and tracked)
+/third_party/*
+!/third_party/fh2ml/
 include/stb
 
 # Dependency directories

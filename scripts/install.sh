@@ -1,48 +1,33 @@
 #!/usr/bin/env bash
-# Copies the built mod into an Azimuth folder (the one with azimuth.exe).
-# Run after build.sh.
+# Copies the built mod into an Azimuth folder (the one with azimuth.exe), as
+# mods/universalradio, where FH2ML loads it. Run after build.sh.
 #
 #   $ scripts/install.sh /path/to/Azimuth
 #
-# Existing files are backed up to *.bak before being overwritten. Your
-# config.toml, fh2.ini, Spotify login and downloaded helpers are kept.
+# The mod's folder is replaced, the way an update through the FH2ML Manager
+# replaces it. Your fh2.ini, config.toml, Spotify login and downloaded helpers
+# live in FH2ML/data/universalradio and aren't touched.
 
 set -euo pipefail
 
 azimuth=${1:?Usage: $0 <azimuth-dir>}
 root=$(cd "$(dirname "$0")/.." && pwd)
-dist=$root/dist
+pkg=$root/dist/mods/universalradio
 
-[ -f "$dist/d3dcompiler_47.dll" ] || { echo "dist/d3dcompiler_47.dll not found, run scripts/build.sh first." >&2; exit 1; }
+[ -f "$pkg/mod.json" ] || { echo "dist/mods/universalradio not found, run scripts/build.sh first." >&2; exit 1; }
 [ -d "$azimuth" ] || { echo "Azimuth directory not found: $azimuth" >&2; exit 1; }
 [ -f "$azimuth/azimuth.exe" ] || {
     printf '\033[33mazimuth.exe not found in %s, make sure this is the right folder.\033[0m\n' "$azimuth" >&2
     exit 1
 }
+[ -f "$azimuth/data/bin/FH2ML.Runtime.dll" ] ||
+    printf "\033[33mFH2ML isn't installed in %s yet; the radio needs it (https://github.com/Refilewski/FH2ML).\033[0m\n" "$azimuth" >&2
 
-# Copy $1 to $2, backing up any existing target to *.bak.
-backup_and_copy() {
-    local src=$1 dst=$2
-    mkdir -p "$(dirname "$dst")"
-    [ -f "$dst" ] && cp -f "$dst" "$dst.bak"
-    cp -f "$src" "$dst"
-    printf '  + %s\n' "${dst#"$azimuth/"}"
-}
-
-# The FH2 Mod Platform (in 1.0.x this file was the whole mod), then the mod
-# itself in fh2-mods, where the loader picks it up.
-backup_and_copy "$dist/d3dcompiler_47.dll" "$azimuth/d3dcompiler_47.dll"
-backup_and_copy "$dist/fh2-mods/FH2UniversalRadio.dll" "$azimuth/fh2-mods/FH2UniversalRadio.dll"
-
-mkdir -p "$azimuth/fh2-radio"
-cp -rfT "$dist/fh2-radio/ui" "$azimuth/fh2-radio/ui"
-cp -rfT "$dist/fh2-radio/assets" "$azimuth/fh2-radio/assets"
-cp -f "$dist/README.txt" "$azimuth/fh2-radio/README.txt"
-if [ ! -f "$azimuth/fh2-radio/config.toml" ]; then
-    cp "$dist/fh2-radio/config.toml" "$azimuth/fh2-radio/config.toml"
-    printf '\033[33m  + fh2-radio/config.toml  (seeded from example)\033[0m\n'
-fi
-backup_and_copy "$dist/fh2-radio/fh2-radio-worker.exe" "$azimuth/fh2-radio/fh2-radio-worker.exe"
+dst=$azimuth/mods/universalradio
+rm -rf "$dst"
+mkdir -p "$azimuth/mods"
+cp -r "$pkg" "$dst"
+(cd "$dst" && find . -type f -printf '  + mods/universalradio/%P\n')
 
 printf '\n\033[32mDone. Launch FH2, set Audio > Radio DJ = Off and tune to Horizon Pulse.\033[0m\n'
 echo "Then open http://localhost:8420 in any browser on this machine."
