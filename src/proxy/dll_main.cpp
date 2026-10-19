@@ -83,6 +83,17 @@ void add_mods_rows(const FH2ModApi* api, FH2Mod* mod) {
         s.user        = const_cast<ModsRow*>(&r);
         api->add_setting(mod, &s);
     }
+    if (api->api_version >= 6) {   // platform 2.5.0: a row on the MODS tab that opens the dashboard
+        FH2Setting s{};
+        s.size        = sizeof s;
+        s.key         = "Dashboard";
+        s.label       = "Open the dashboard";
+        s.description = "Opens the radio's dashboard in your browser, where you choose what plays: Spotify, your own music, "
+                        "online radio, YouTube Music, Jellyfin or another app. The game keeps running; switch to the browser to see it.";
+        s.kind        = FH2_SETTING_LINK;
+        s.url         = "http://localhost:8420";
+        api->add_setting(mod, &s);
+    }
 }
 
 } // namespace
