@@ -96,6 +96,7 @@ FH2MOD_EXPORT int fh2mod_init(const FH2ModApi* api) {
     info.version          = FH2_RADIO_VERSION;
     info.github_repo      = "Trinculo54/FH2-Universal-Radio";
     info.platform_version = FH2MOD_PLATFORM_VERSION;
+    info.description      = "Plays your own music through the game's radio, on Horizon Pulse by default: Spotify, local files, online radio, YouTube Music, Jellyfin or any Windows app. Choose what plays from the dashboard at localhost:8420 in your browser.";
     info.check_updates    = GetPrivateProfileIntW(L"updates", L"check", 1, ini.c_str()) != 0;
     FH2Mod* mod = api->register_mod(&info);
     if (!mod) return 1;
