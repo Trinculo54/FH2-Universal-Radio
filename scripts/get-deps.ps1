@@ -14,8 +14,7 @@ $deps = @(
     @{ Url = "https://raw.githubusercontent.com/ToruNiina/toml11/main/single_include/toml.hpp"; Out = "toml11\toml.hpp" },
     @{ Url = "https://raw.githubusercontent.com/mackron/miniaudio/master/miniaudio.h"; Out = "miniaudio\miniaudio.h" },
     @{ Url = "https://raw.githubusercontent.com/nothings/stb/master/stb_image.h"; Out = "stb\stb_image.h" },
-    @{ Url = "https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h"; Out = "stb\stb_image_write.h" },
-    @{ Url = "https://raw.githubusercontent.com/nothings/stb/master/stb_image_resize2.h"; Out = "stb\stb_image_resize2.h" }
+    @{ Url = "https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h"; Out = "stb\stb_image_write.h" }
 )
 
 foreach ($d in $deps) {

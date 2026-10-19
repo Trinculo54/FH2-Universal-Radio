@@ -23,6 +23,5 @@ fetch https://raw.githubusercontent.com/ToruNiina/toml11/main/single_include/tom
 fetch https://raw.githubusercontent.com/mackron/miniaudio/master/miniaudio.h                    miniaudio/miniaudio.h
 fetch https://raw.githubusercontent.com/nothings/stb/master/stb_image.h                    stb/stb_image.h
 fetch https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h              stb/stb_image_write.h
-fetch https://raw.githubusercontent.com/nothings/stb/master/stb_image_resize2.h            stb/stb_image_resize2.h
 
 printf '\n\033[32mAll dependencies fetched into %s.\033[0m\n' "$tp"
