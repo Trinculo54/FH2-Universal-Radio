@@ -83,6 +83,17 @@ void add_mods_rows(const FH2ModApi* api, FH2Mod* mod) {
         s.user        = const_cast<ModsRow*>(&r);
         api->add_setting(mod, &s);
     }
+    if (api->api_version >= 6) {   // platform 2.5.0: a row on the MODS tab that opens the dashboard
+        FH2Setting s{};
+        s.size        = sizeof s;
+        s.key         = "Dashboard";
+        s.label       = "Open the dashboard";
+        s.description = "Opens the radio's dashboard in your browser, where you choose what plays: Spotify, your own music, "
+                        "online radio, YouTube Music, Jellyfin or another app. The game keeps running; switch to the browser to see it.";
+        s.kind        = FH2_SETTING_LINK;
+        s.url         = "http://localhost:8420";
+        api->add_setting(mod, &s);
+    }
 }
 
 } // namespace
@@ -96,6 +107,7 @@ FH2MOD_EXPORT int fh2mod_init(const FH2ModApi* api) {
     info.version          = FH2_RADIO_VERSION;
     info.github_repo      = "Trinculo54/FH2-Universal-Radio";
     info.platform_version = FH2MOD_PLATFORM_VERSION;
+    info.description      = "Plays your own music through the game's radio, on Horizon Pulse by default: Spotify, local files, online radio, YouTube Music, Jellyfin or any Windows app. Choose what plays from the dashboard at localhost:8420 in your browser.";
     info.check_updates    = GetPrivateProfileIntW(L"updates", L"check", 1, ini.c_str()) != 0;
     FH2Mod* mod = api->register_mod(&info);
     if (!mod) return 1;
