@@ -262,9 +262,8 @@ void fill_exinfo(std::byte (&ex)[fmod::kExinfoSize], uint32_t length, void* user
 
 // ---- C entry points the patched code / FMOD call ------------------------------
 extern "C" {
-uint32_t fh2_create_sound_entry(void* system, const char* name, uint32_t mode, void* exinfo,
-                                void** out, std::byte* radio_stream) {
-    return RadioHook::instance().on_create_sound(system, name, mode, exinfo, out, radio_stream);
+uint32_t fh2_create_sound_entry(void* system, const char* name, uint32_t mode, void* exinfo, void** out) {
+    return RadioHook::instance().on_create_sound(system, name, mode, exinfo, out);
 }
 uint32_t fh2_get_sub_sound_entry(void* sound, int index, void** out) {
     return RadioHook::instance().on_get_sub_sound(sound, index, out);
@@ -291,62 +290,28 @@ void fill_exinfo(std::byte (&ex)[fmod::kExinfoSize], uint32_t length, void* user
     putp(fmod::kExUserData, userdata);
 }
 
-// Stub that the createSound call site is pointed at. Forwards the five
-// createSound arguments plus the caller's rdi (the RadioStreamFmod*) as a
-// sixth argument:
-//     sub  rsp, 38h
-//     mov  rax, [rsp+60h]        ; caller's 5th arg (Sound**)
-//     mov  [rsp+20h], rax
-//     mov  [rsp+28h], rdi        ; 6th arg
-//     call [rip+5]
-//     add  rsp, 38h
-//     ret
-//     dq   fh2_create_sound_entry
-constexpr uint8_t kCreateStub[] = {
-    0x48, 0x83, 0xEC, 0x38,                   // sub rsp,38h
-    0x48, 0x8B, 0x44, 0x24, 0x60,             // mov rax,[rsp+60h]
-    0x48, 0x89, 0x44, 0x24, 0x20,             // mov [rsp+20h],rax
-    0x48, 0x89, 0x7C, 0x24, 0x28,             // mov [rsp+28h],rdi
-    0xFF, 0x15, 0x05, 0x00, 0x00, 0x00,       // call [rip+5]
-    0x48, 0x83, 0xC4, 0x38,                   // add rsp,38h
-    0xC3,                                     // ret
-};
-constexpr std::size_t kCreateStubCode = sizeof(kCreateStub); // 30, target qword follows
-
-// jmp [rip+0]; dq fh2_get_sub_sound_entry
+// Without the platform, the call sites are patched with a CALL rel32, which
+// can't reach this DLL, so each one points at a jump within reach of the game:
+//     jmp [rip+0]
+//     dq  fh2_create_sound_entry / fh2_get_sub_sound_entry
+// It's entered exactly as the call would have entered the FMOD function and
+// leaves the stack alone, so it needs no unwind information.
 constexpr uint8_t kJmpStub[] = {0xFF, 0x25, 0x00, 0x00, 0x00, 0x00};
-
-// UNWIND_INFO for kCreateStub: v1, prolog 4 bytes, one code:
-// UWOP_ALLOC_SMALL(0x38) at offset 4.
-constexpr uint8_t kCreateUnwind[] = {0x01, 0x04, 0x01, 0x00, 0x04, 0x62, 0x00, 0x00};
 
 constexpr uint8_t kOperatorNewPrologue[] = {0x48, 0x89, 0x5C, 0x24, 0x08,
                                             0x57, 0x48, 0x83, 0xEC, 0x20};
 std::byte* build_stubs(std::byte* image_base) noexcept {
     std::byte* page = alloc_near(image_base, 0x1000);
     if (!page) return nullptr;
-    std::byte* unwind = page + 0x80;
-    auto* rtf         = reinterpret_cast<RUNTIME_FUNCTION*>(page + 0xC0);
-
-    std::memcpy(page, kCreateStub, sizeof(kCreateStub));
-    const void* create_entry = reinterpret_cast<const void*>(&fh2_create_sound_entry);
-    std::memcpy(page + kCreateStubCode, &create_entry, 8);
-
-    std::memcpy((page + 0x40), kJmpStub, sizeof(kJmpStub));
-    const void* sub_entry = reinterpret_cast<const void*>(&fh2_get_sub_sound_entry);
-    std::memcpy((page + 0x40) + sizeof(kJmpStub), &sub_entry, 8);
-
-    std::memcpy(unwind, kCreateUnwind, sizeof(kCreateUnwind));
-    rtf->BeginAddress      = 0;
-    rtf->EndAddress        = static_cast<DWORD>(kCreateStubCode);
-    rtf->UnwindData        = 0x80;
-    if (!RtlAddFunctionTable(rtf, 1, reinterpret_cast<DWORD64>(page)))
-        fh6::log::warn("[fh2] RtlAddFunctionTable failed (stack walks through the stub may be off)");
-
+    const void* entries[2] = {reinterpret_cast<const void*>(&fh2_create_sound_entry),
+                              reinterpret_cast<const void*>(&fh2_get_sub_sound_entry)};
+    for (int i = 0; i < 2; ++i) {
+        std::memcpy(page + 0x40 * i, kJmpStub, sizeof(kJmpStub));
+        std::memcpy(page + 0x40 * i + sizeof(kJmpStub), &entries[i], 8);
+    }
     DWORD old = 0;
     VirtualProtect(page, 0x1000, PAGE_EXECUTE_READ, &old);
     FlushInstructionCache(GetCurrentProcess(), page, 0x1000);
-
     return page;
 }
 } // namespace
@@ -415,29 +380,19 @@ bool RadioHook::install(const GameImage& img, fh6::AudioSourceManager& mgr, Sett
 
     g_img_base = img.base;
 
-    // Stub page within rel32 reach of the game image (built once, even if a
-    // later patch step fails and install() is retried).
-    if (!stub_page_) stub_page_ = build_stubs(img.base);
-    if (!stub_page_) {
-        fh6::log::error("[fh2] could not allocate a stub page near the game image");
-        return false;
-    }
-    create_stub_   = stub_page_;
-    subsound_stub_ = stub_page_ + 0x40;
-
     if (api) {
-        // The stubs are the detours: they're entered exactly as the call
-        // would have entered createSound/getSubSound (the platform's stubs
-        // only jmp), so the createSound stub still finds the caller's rdi.
-        // If another mod's hook on the same call runs before ours, rdi may
-        // not be the RadioStreamFmod any more; on_create_sound checks its
-        // vtable and falls back to the bank name then.
+        // The platform's call hooks reach any detour, so these are the
+        // functions themselves: no stubs of our own. on_create_sound finds
+        // the RadioStreamFmod from createSound's last argument (&this->sound),
+        // so it still works if another mod's hook on the same call runs first
+        // (as long as that hook passes the game's arguments on).
         if (!platform_sub_) {
             platform_sub_ = api->hook_call(platform_mod(), "RadioStreamFmod::start -> Sound::getSubSound", sub_site,
-                                           subsound_stub_, &platform_orig_sub_);
+                                           reinterpret_cast<void*>(&fh2_get_sub_sound_entry), &platform_orig_sub_);
             platform_create_ =
                 platform_sub_ ? api->hook_call(platform_mod(), "RadioStreamFmod::load -> System::createSound",
-                                               create_site, create_stub_, &platform_orig_create_)
+                                               create_site, reinterpret_cast<void*>(&fh2_create_sound_entry),
+                                               &platform_orig_create_)
                               : nullptr;
             if (!platform_create_) {
                 platform_refused_ = true;
@@ -458,10 +413,20 @@ bool RadioHook::install(const GameImage& img, fh6::AudioSourceManager& mgr, Sett
         }
         via_platform_ = true;
         installed_.store(true, std::memory_order_release);
-        fh6::log::info("[fh2] radio hooks installed through the FH2 Mod Platform: image @0x{:X}, stubs @0x{:X}",
-                       reinterpret_cast<uintptr_t>(img.base), reinterpret_cast<uintptr_t>(stub_page_));
+        fh6::log::info("[fh2] radio hooks installed through the FH2 Mod Platform: image @0x{:X}",
+                       reinterpret_cast<uintptr_t>(img.base));
         return true;
     }
+
+    // Jumps within rel32 reach of the game image (built once, even if a
+    // later patch step fails and install() is retried).
+    if (!stub_page_) stub_page_ = build_stubs(img.base);
+    if (!stub_page_) {
+        fh6::log::error("[fh2] could not allocate a stub page near the game image");
+        return false;
+    }
+    create_stub_   = stub_page_;
+    subsound_stub_ = stub_page_ + 0x40;
 
     // getSubSound first: it's a no-op for vanilla sounds, so it's safe to
     // have it live before the createSound substitution starts.
@@ -517,9 +482,12 @@ void RadioHook::push_metadata(std::string_view title, std::string_view artist) n
 }
 
 uint32_t RadioHook::on_create_sound(void* system, const char* name, uint32_t mode, void* exinfo,
-                                    void** out, std::byte* rs) noexcept {
+                                    void** out) noexcept {
     const auto passthrough = [&] { return g_create_sound(system, name, mode, exinfo, out); };
     if (!settings_ || !mgr_) return passthrough();
+    // The game passes &this->sound, so the RadioStreamFmod is just before it
+    // (checked by its vtable below).
+    std::byte* rs = out ? reinterpret_cast<std::byte*>(out) - layout::kStreamSound : nullptr;
 
     bool created = false; // a substitute stream is already in *out
     try {

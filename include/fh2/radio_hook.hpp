@@ -74,7 +74,7 @@ public:
 
     // ---- called from the patched game code / FMOD threads ----------------
     uint32_t on_create_sound(void* system, const char* name_or_data, uint32_t mode, void* exinfo,
-                             void** out_sound, std::byte* radio_stream) noexcept;
+                             void** out_sound) noexcept;
     uint32_t on_get_sub_sound(void* sound, int index, void** out) noexcept;
     uint32_t on_pcm_read(void* sound, void* data, uint32_t len) noexcept;
 
