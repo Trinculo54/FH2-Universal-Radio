@@ -239,7 +239,7 @@
 
   "deps.title": "Dépendances",
 
-  "deps.description": "Téléchargement des outils nécessaires (ffmpeg, yt-dlp, librespot) dans <code>fh6-radio/bin</code>.",
+  "deps.description": "Téléchargement des outils nécessaires (ffmpeg, yt-dlp, librespot) dans <code>FH2ML/data/universalradio/bin</code>.",
   "deps.ready": "prêt",
   "deps.downloading_mb": "téléchargement {mb} Mo",
   "deps.downloading_pct": "téléchargement {pct}%",

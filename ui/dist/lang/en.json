@@ -266,7 +266,7 @@
   // ─── Dependencies card (ffmpeg / yt-dlp / librespot downloads) ─────────
   "deps.title": "Dependencies",
   // Contains a <code> tag — keep it (renders as literal HTML, not escaped).
-  "deps.description": "Fetching the tools the providers need (ffmpeg, yt-dlp, librespot) into <code>fh6-radio/bin</code>.",
+  "deps.description": "Fetching the tools the providers need (ffmpeg, yt-dlp, librespot) into <code>FH2ML/data/universalradio/bin</code>.",
   "deps.ready": "ready",
   "deps.downloading_mb": "downloading {mb} MB",
   "deps.downloading_pct": "downloading {pct}%",
