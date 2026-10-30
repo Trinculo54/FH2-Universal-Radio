@@ -289,9 +289,8 @@ void YouTubeMusicSource::resolve_queue_locked() {
         native::Stage st{"yt-dlp",
                          {"--ignore-config", "--no-warnings", "--flat-playlist", "--skip-download",
                           "--encoding", "UTF-8", "--print", "%(id)s\t%(title)s"}};
-        if (!cfg_.cookies_path.empty())
-            st.args.insert(st.args.end(),
-                           {"--cookies", native::to_unix_path(cfg_.cookies_path)});
+        if (const auto ck = native::to_unix_path(cfg_.cookies_path); !ck.empty())
+            st.args.insert(st.args.end(), {"--cookies", ck});
         st.args.insert(st.args.end(), {"--", effective_url});
         raw = native_->run_capture(st);
     }
@@ -397,9 +396,11 @@ YouTubeMusicSource::spawn_pipe_locked(std::string_view url, std::size_t for_idx)
     // Native path (Wine/Proton + [native] configured): Linux yt-dlp | ffmpeg
     // run by the helper; PCM and the title lines arrive over loopback sockets.
     if (native_ && native_->alive()) {
+        // to_unix_path() returns "" for an empty or unconvertible path; never
+        // pass yt-dlp an empty --cookies value.
         std::vector<std::string> cookies;
-        if (!cfg_.cookies_path.empty())
-            cookies = {"--cookies", native::to_unix_path(cfg_.cookies_path)};
+        if (const auto ck = native::to_unix_path(cfg_.cookies_path); !ck.empty())
+            cookies = {"--cookies", ck};
         auto with_url = [&](std::vector<std::string> a) {
             a.insert(a.end(), cookies.begin(), cookies.end());
             a.insert(a.end(), {"--", play_url});
