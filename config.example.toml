@@ -113,3 +113,12 @@ kb_prev       = 0           # keyboard virtual key code to go to previous track 
 pad_prev      = 0           # XInput controller button mask to go to previous track (0 = unbound)
 kb_next_station = 0         # keyboard virtual key code to change active station/playlist (0 = unbound)
 pad_next_station = 0        # XInput controller button mask to change active station/playlist (0 = unbound)
+# Steam Deck / Linux (Wine/Proton) only; ignored on Windows. When enabled, YouTube
+# Music runs native Linux yt-dlp + ffmpeg through fh2-radio-native-helper instead
+# of yt-dlp.exe/ffmpeg.exe under Wine. Falls back to the .exe path if the helper
+# can't be started. Unix paths. Changes need a game restart.
+[native]
+enabled = false
+helper  = ''                # e.g. '/home/deck/fh2-radio-native/fh2-radio-native-helper'
+yt_dlp  = ''                # e.g. '/home/deck/fh2-radio-native/yt-dlp/yt-dlp_linux'
+ffmpeg  = ''                # e.g. '/home/deck/fh2-radio-native/ffmpeg'

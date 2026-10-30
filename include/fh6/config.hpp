@@ -136,6 +136,17 @@ struct VanillaRadioConfig {
     bool enabled = false;
 };
 
+// Wine/Proton only: run yt-dlp + ffmpeg as native Linux processes through a
+// small native helper (fh2-radio-native-helper) instead of spawning the
+// Windows .exe builds through Wine. Ignored on real Windows. Paths are Unix
+// paths (/home/deck/...) or Wine DOS paths (Z:\home\deck\...).
+struct NativeConfig {
+    bool enabled = false;
+    std::string helper; // native helper binary (ELF)
+    std::string yt_dlp; // native yt-dlp (e.g. yt-dlp_linux)
+    std::string ffmpeg; // native ffmpeg (static build)
+};
+
 struct Config {
     GeneralConfig general;
     LocalFilesConfig local_files;
@@ -147,6 +158,7 @@ struct Config {
     OnlineRadioConfig online_radio;
     VanillaRadioConfig vanilla_radio;
     PlaybackConfig playback;
+    NativeConfig native;
 };
 
 // Missing file is fine, defaults are returned.

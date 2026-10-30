@@ -17,6 +17,7 @@
 #include "fh6/sources/jellyfin_source.hpp"
 #include "fh6/sources/spotify_source.hpp"
 #include "fh6/worker/worker_client.hpp"
+#include "fh6/native_bridge.hpp"
 #include "fh6/sources/online_radio_source.hpp"
 
 #include <windows.h>
@@ -166,10 +167,21 @@ void run_bridge(HMODULE self) noexcept {
         }
     }
 
+    // Wine/Proton: optional native Linux yt-dlp/ffmpeg via a helper process.
+    // Read once at startup; changing [native] needs a game restart.
+    auto native_helper = std::make_shared<native::NativeHelper>();
+    if (cfg.native.enabled) {
+        if (!native_helper->start(cfg.native))
+            log::warn("[bridge] native helper unavailable -- YouTube uses the .exe path");
+    } else if (native::running_under_wine()) {
+        log::info("[bridge] running under Wine {} (native helper disabled)",
+                  native::wine_version());
+    }
+
     // Register/unregister sources to match the enabled flags. Called at
     // startup and on every config change so toggling enabled adds/removes
     // the dashboard tile live, without a game restart.
-    auto sync_sources = [&mgr, &data_dir, &worker](const Config& c) {
+    auto sync_sources = [&mgr, &data_dir, &worker, &native_helper](const Config& c) {
         if (c.local_files.enabled && !mgr.find("local_files")) {
             auto src = std::make_unique<sources::LocalFileSource>(
                 c.local_files, c.general.ffmpeg_path, data_dir / "local_index.json", worker.get());
@@ -181,6 +193,7 @@ void run_bridge(HMODULE self) noexcept {
             auto src = std::make_unique<sources::YouTubeMusicSource>(c.youtube_music,
                                                                      c.general.ffmpeg_path,
                                                                      worker.get());
+            src->set_native(native_helper.get());
             if (src->initialize()) mgr.register_source(std::move(src));
         } else if (!c.youtube_music.enabled && mgr.find("youtube_music")) {
             mgr.unregister_source("youtube_music");
