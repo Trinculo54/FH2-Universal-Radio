@@ -137,3 +137,16 @@ if(FH2_TESTS)
     target_link_libraries(radio_shim PRIVATE fh2mod_api)
     set_target_properties(radio_shim PROPERTIES OUTPUT_NAME RadioShim PREFIX "")
 endif()
+
+# On-device probe for the Wine/Proton native helper path (tests/native_probe.cpp).
+option(FH2_NATIVE_PROBE "Build native_probe.exe (Wine/Proton native helper check)" OFF)
+if(FH2_NATIVE_PROBE)
+    add_executable(native_probe
+        tests/native_probe.cpp
+        src/native_bridge.cpp
+        src/subprocess.cpp
+        src/log.cpp
+    )
+    target_include_directories(native_probe PRIVATE include third_party/nlohmann)
+    target_link_libraries(native_probe PRIVATE ws2_32 bcrypt advapi32)
+endif()
