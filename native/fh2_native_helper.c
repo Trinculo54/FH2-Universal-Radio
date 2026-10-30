@@ -33,7 +33,10 @@
 // the command line; the client can never name an arbitrary binary.
 //
 // Build (static, no runtime deps; see native/build.sh):
-//   zig cc -target x86_64-linux-musl -static -O2 -o fh2-radio-native-helper fh2_native_helper.c
+//   zig cc -target x86_64-linux-musl -static -fno-pie -no-pie -O2
+//          -o fh2-radio-native-helper fh2_native_helper.c
+// It must NOT be a static-PIE (ET_DYN without PT_INTERP): Wine loads those as
+// builtin libraries instead of exec()ing them.
 
 #define _GNU_SOURCE
 #include <arpa/inet.h>
@@ -145,8 +148,14 @@ static void reap_children(void) {
 }
 
 // --- request parsing --------------------------------------------------------
+// Whole-request deadline: a client that trickles bytes can't stall the
+// (single-threaded) accept loop for longer than this.
+#define REQ_TIMEOUT_S 3
+static time_t g_req_deadline;
+
 static int read_full(int fd, char* p, size_t n) {
     while (n) {
+        if (g_req_deadline && time(NULL) > g_req_deadline) return -1;
         ssize_t r = read(fd, p, n);
         if (r <= 0) {
             if (r < 0 && errno == EINTR) continue;
@@ -170,6 +179,14 @@ static int read_line(int fd, char* out, size_t cap) {
     }
     out[n] = 0;
     return 0;
+}
+
+// Constant-time compare so the token can't be guessed byte by byte.
+static int token_eq(const char* got) {
+    size_t a = strlen(got), b = strlen(g_token);
+    unsigned char d = (unsigned char)(a != b);
+    for (size_t i = 0; i < b; ++i) d |= (unsigned char)(got[i < a ? i : 0] ^ g_token[i]);
+    return d == 0;
 }
 
 static long read_num(int fd, long max) {
@@ -196,7 +213,7 @@ static void free_stages(struct stage* st, int n) {
 static int parse_request(int fd, char* op, size_t opcap, struct stage* st) {
     char line[256];
     if (read_line(fd, line, sizeof line) < 0 || strcmp(line, "FH2N/1") != 0) return -1;
-    if (read_line(fd, line, sizeof line) < 0 || strcmp(line, g_token) != 0) return -1;
+    if (read_line(fd, line, sizeof line) < 0 || !token_eq(line)) return -1;
     if (read_line(fd, op, opcap) < 0) return -1;
     long nst = read_num(fd, MAX_STAGES);
     if (nst < 0) return -1;
@@ -402,7 +419,9 @@ int main(int argc, char** argv) {
                 setsockopt(c, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
                 char op[16];
                 struct stage st[MAX_STAGES];
+                g_req_deadline = time(NULL) + REQ_TIMEOUT_S;
                 int nst = parse_request(c, op, sizeof op, st);
+                g_req_deadline = 0;
                 if (nst < 0) {
                     logf_("rejected malformed/unauthenticated request");
                     close(c);
