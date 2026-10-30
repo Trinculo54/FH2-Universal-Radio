@@ -75,6 +75,7 @@ add_library(fh2radio SHARED
     src/sources/external_media_session.cpp
     src/sources/spotify_source.cpp
     src/worker/worker_client.cpp
+    src/native_bridge.cpp
     src/sources/online_radio_source.cpp
     src/version.rc
 )
