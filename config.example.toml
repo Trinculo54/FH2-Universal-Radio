@@ -120,5 +120,5 @@ pad_next_station = 0        # XInput controller button mask to change active sta
 [native]
 enabled = false
 helper  = ''                # e.g. '/home/deck/fh2-radio-native/fh2-radio-native-helper'
-yt_dlp  = ''                # e.g. '/home/deck/fh2-radio-native/yt-dlp_linux'
+yt_dlp  = ''                # e.g. '/home/deck/fh2-radio-native/yt-dlp/yt-dlp_linux'
 ffmpeg  = ''                # e.g. '/home/deck/fh2-radio-native/ffmpeg'

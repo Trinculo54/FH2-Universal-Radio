@@ -52,6 +52,26 @@ Everything else, like sources, volume and local music folders, is set from the d
 
 When a newer FH2 Universal Radio is out, the title screen tells you: "PRESS (A) TO START" gets a note like "FH2 Universal Radio 1.3.0 is available" added to it. The mod asks GitHub at most every six hours and remembers the answer between launches, and `check=0` under `[updates]` in `fh2.ini` turns that off. If another mod has put back an older FH2 Mod Platform than the one the radio came with, the title screen says that too, and reinstalling the radio fixes it. Other mods on the platform, like WheresMyBuddy, put their notes in the same spot. The update check and the title screen notice come from the platform. The version you have is in the first line of `bridge.log` and in the DLL's file properties.
 
+### Steam Deck / Linux (Proton): native yt-dlp and ffmpeg (optional)
+
+Under Wine/Proton, every YouTube Music track normally starts `yt-dlp.exe` twice and `ffmpeg.exe` once as Windows processes, and the audio goes through Wine pipes. You can have YouTube Music use native Linux builds instead, through a small helper (`fh2-radio-native-helper`, source in `native/`). It's off by default, and Windows ignores it.
+
+1. Put these under your home folder (Proton's container can't see `/usr/local` or `/opt`):
+   - `fh2-radio-native-helper`: build it with `native/build.sh` (needs [zig](https://ziglang.org/)). It must stay a static, non-PIE binary, which the script takes care of.
+   - yt-dlp: the `yt-dlp_linux.zip` release (unpackaged, so it doesn't unpack itself on every launch), plus a `deno` binary in the same folder for YouTube's JS challenges.
+   - A static ffmpeg, for example from [johnvansickle.com/ffmpeg](https://johnvansickle.com/ffmpeg/) or [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases).
+2. Add this to `fh2-radio\config.toml`, with your own paths, and restart the game:
+
+```toml
+[native]
+enabled = true
+helper  = '/home/<user>/fh2-radio-native/fh2-radio-native-helper'
+yt_dlp  = '/home/<user>/fh2-radio-native/yt-dlp/yt-dlp_linux'
+ffmpeg  = '/home/<user>/fh2-radio-native/ffmpeg'
+```
+
+`bridge.log` then says `[native] helper up on 127.0.0.1:...`, and `helpers.log` gets a `pipeline ... started` line for each track. If a path is missing or the helper doesn't answer, the mod logs why and uses the `.exe` path as before. The helper only listens on 127.0.0.1, only runs the two configured programs, needs a random per-session token, and exits with the game. Only YouTube Music uses it for now. You update native yt-dlp yourself by downloading the zip again.
+
 ## Uninstall
 
 Delete `fh2-mods\FH2UniversalRadio.dll` and the `fh2-radio` folder from your Azimuth folder. If you don't use any other FH2 mods, delete `d3dcompiler_47.dll` and the `fh2-mods` folder too.
