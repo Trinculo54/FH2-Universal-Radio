@@ -59,13 +59,13 @@ Under Wine/Proton, every YouTube Music track normally starts `yt-dlp.exe` twice 
 1. Put these under your home folder (Proton's container can't see `/usr/local` or `/opt`):
    - `fh2-radio-native-helper`: build it with `native/build.sh` (needs [zig](https://ziglang.org/)). It must stay a static, non-PIE binary, which the script takes care of.
    - yt-dlp: the `yt-dlp_linux.zip` release (unpackaged, so it doesn't unpack itself on every launch), plus a `deno` binary in the same folder for YouTube's JS challenges.
-   - A static ffmpeg, for example from [johnvansickle.com/ffmpeg](https://johnvansickle.com/ffmpeg/) or [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases).
+   - A **PIE** ffmpeg build such as [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases) (`ffmpeg-master-latest-linux64-gpl`). Static non-PIE builds (e.g. johnvansickle) are killed with SIGSYS when launched from Proton: its seccomp filter traps syscalls from code mapped below 4 GB.
 2. Add this to `fh2-radio\config.toml`, with your own paths, and restart the game:
 
 ```toml
 [native]
 enabled = true
-helper  = '/home/<user>/fh2-radio-native/fh2-radio-native-helper'
+helper  = '/home/<user>/fh2-radio-native/fh2-radio-native-helper.sh'  # the wrapper, not the binary
 yt_dlp  = '/home/<user>/fh2-radio-native/yt-dlp/yt-dlp_linux'
 ffmpeg  = '/home/<user>/fh2-radio-native/ffmpeg'
 ```
