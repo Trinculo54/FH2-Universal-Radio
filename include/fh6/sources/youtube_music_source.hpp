@@ -3,6 +3,7 @@
 #include "fh6/audio_source.hpp"
 #include "fh6/config.hpp"
 #include "fh6/worker/worker_client.hpp"
+#include "fh6/native_bridge.hpp"
 #include "fh6/playback_dsp.hpp"
 
 #include <atomic>
@@ -46,6 +47,9 @@ public:
     void set_shuffle(bool shuffle);
     void set_ffmpeg_path(std::filesystem::path p);
     void set_yt_dlp_path(std::filesystem::path p);
+    // Wine/Proton: when set and alive, yt-dlp/ffmpeg run as native Linux
+    // processes via the helper instead of the Windows .exe builds.
+    void set_native(native::NativeHelper* helper);
     void set_playback_options(const PlaybackConfig& opts) override;
 
     void set_config(YouTubeMusicConfig cfg);
@@ -98,6 +102,7 @@ private:
     YouTubeMusicConfig cfg_;
     std::filesystem::path ffmpeg_path_;
     worker::WorkerClient* worker_;
+    native::NativeHelper* native_ = nullptr;
     std::unique_ptr<Pipe> pipe_;
     std::unique_ptr<Pipe> prefetch_; // pre-spawned next-track pipeline (or null)
 

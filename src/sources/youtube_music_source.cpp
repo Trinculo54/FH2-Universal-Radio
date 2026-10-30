@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <random>
 #include <string>
 #include <vector>
@@ -52,6 +53,14 @@ struct YouTubeMusicSource::Pipe {
     HANDLE proc_ff    = nullptr;
     HANDLE proc_title = nullptr;
 
+    // -- native mode (Wine/Proton): loopback sockets from the native helper;
+    //    closing them makes the helper kill the native pipeline --
+    SOCKET pcm_sock   = INVALID_SOCKET;
+    SOCKET title_sock = INVALID_SOCKET;
+    // TCP may split a stereo frame; carry the 1-3 leftover bytes forward.
+    unsigned char carry[4]{};
+    std::size_t carry_n = 0;
+
     // -- shared: data pipe handles (named pipe client or anonymous pipe read end) --
     HANDLE read_pipe  = nullptr;
     HANDLE title_pipe = nullptr;
@@ -65,6 +74,8 @@ struct YouTubeMusicSource::Pipe {
     TrackInfo info{};
 
     ~Pipe() {
+        if (pcm_sock != INVALID_SOCKET) closesocket(pcm_sock);
+        if (title_sock != INVALID_SOCKET) closesocket(title_sock);
         if (read_pipe) { CloseHandle(read_pipe); read_pipe = nullptr; }
         if (title_pipe) { CloseHandle(title_pipe); title_pipe = nullptr; }
         // Worker mode: ask worker to terminate the child tree.
@@ -177,6 +188,11 @@ void YouTubeMusicSource::set_yt_dlp_path(std::filesystem::path p) {
     cfg_.yt_dlp_path = std::move(p);
 }
 
+void YouTubeMusicSource::set_native(native::NativeHelper* helper) {
+    std::scoped_lock lk{mu_};
+    native_ = helper;
+}
+
 void YouTubeMusicSource::set_shuffle(bool shuffle) {
     std::scoped_lock lk{mu_};
     cfg_.shuffle = shuffle;
@@ -269,7 +285,17 @@ void YouTubeMusicSource::resolve_queue_locked() {
     // Prefer the worker (no fork of the game process); fall back to a direct
     // spawn when it's absent or returns nothing.
     std::string raw;
-    if (worker_ && worker_->alive()) raw = worker_->run_capture(cmd);
+    if (native_ && native_->alive()) {
+        native::Stage st{"yt-dlp",
+                         {"--ignore-config", "--no-warnings", "--flat-playlist", "--skip-download",
+                          "--encoding", "UTF-8", "--print", "%(id)s\t%(title)s"}};
+        if (!cfg_.cookies_path.empty())
+            st.args.insert(st.args.end(),
+                           {"--cookies", native::to_unix_path(cfg_.cookies_path)});
+        st.args.insert(st.args.end(), {"--", effective_url});
+        raw = native_->run_capture(st);
+    }
+    if (raw.empty() && worker_ && worker_->alive()) raw = worker_->run_capture(cmd);
 
     if (raw.empty()) {
         HANDLE job = create_kill_on_close_job();
@@ -367,6 +393,40 @@ YouTubeMusicSource::spawn_pipe_locked(std::string_view url, std::size_t for_idx)
     if (!cfg_.cookies_path.empty())
         tl_cmd += L"--cookies " + quote(cfg_.cookies_path.wstring()) + L" ";
     tl_cmd += L"-- " + quote(widen(play_url));
+
+    // Native path (Wine/Proton + [native] configured): Linux yt-dlp | ffmpeg
+    // run by the helper; PCM and the title lines arrive over loopback sockets.
+    if (native_ && native_->alive()) {
+        std::vector<std::string> cookies;
+        if (!cfg_.cookies_path.empty())
+            cookies = {"--cookies", native::to_unix_path(cfg_.cookies_path)};
+        auto with_url = [&](std::vector<std::string> a) {
+            a.insert(a.end(), cookies.begin(), cookies.end());
+            a.insert(a.end(), {"--", play_url});
+            return a;
+        };
+        native::Stage yt{"yt-dlp", with_url({"--ignore-config", "--no-warnings", "--no-progress",
+                                              "--no-write-thumbnail", "--format", "bestaudio/best",
+                                              "--no-playlist", "-o", "-"})};
+        native::Stage ff{"ffmpeg", {"-loglevel", "error", "-i", "pipe:0", "-f", "s16le"}};
+        if (volume_norm_.load(std::memory_order_acquire))
+            ff.args.insert(ff.args.end(), {"-af", "loudnorm=I=-14:TP=-2:LRA=11"});
+        ff.args.insert(ff.args.end(),
+                       {"-acodec", "pcm_s16le", "-ar", "48000", "-ac", "2", "pipe:1"});
+        native::Stage tl{"yt-dlp",
+                         with_url({"--ignore-config", "--skip-download", "--no-warnings",
+                                   "--no-playlist", "--no-write-thumbnail", "--encoding", "UTF-8",
+                                   "--print", "%(title)s", "--print", "%(uploader)s", "--print",
+                                   "%(duration)s", "--print", "%(thumbnail)s"})};
+        pipe->pcm_sock = native_->open_run({yt, ff});
+        if (pipe->pcm_sock != INVALID_SOCKET) {
+            pipe->title_sock = native_->open_run({tl});
+            log::info("[yt] pipe started via native helper for {} (track {}/{})", play_url,
+                      for_idx + 1, queue_.size());
+            return pipe;
+        }
+        log::warn("[yt] native helper spawn failed for {} -- falling back to .exe path", play_url);
+    }
 
     // Worker path: delegate every CreateProcess to the worker. Falls through to
     // the direct path below if the worker is absent or the spawn fails.
@@ -621,10 +681,27 @@ void YouTubeMusicSource::drain_title_pipe_locked(Pipe* p) {
     // yt-dlp --print closes its stdout last; the Peek right after may go
     // ERROR_BROKEN_PIPE before we've drained the buffered "title\nuploader\n
     // duration\n", so we finalise on broken-pipe too.
-    if (!p || !p->title_pipe) return;
-
+    if (!p) return;
     bool finalise = false;
-    for (int safety = 0; safety < 8; ++safety) {
+    if (p->title_sock != INVALID_SOCKET) {
+        for (int safety = 0; safety < 8; ++safety) {
+            char tbuf[1024];
+            const int got = native::sock_read(p->title_sock, tbuf, sizeof(tbuf));
+            if (got == 0) break;
+            if (got < 0) {
+                finalise = true;
+                break;
+            }
+            p->title_buf.append(tbuf, (std::size_t)got);
+        }
+        if (!finalise) return;
+        closesocket(p->title_sock);
+        p->title_sock = INVALID_SOCKET;
+    } else if (!p->title_pipe) {
+        return;
+    }
+
+    for (int safety = 0; !finalise && p->title_pipe && safety < 8; ++safety) {
         DWORD tavail = 0;
         BOOL ok      = PeekNamedPipe(p->title_pipe, nullptr, 0, nullptr, &tavail, nullptr);
         if (!ok) {
@@ -667,7 +744,7 @@ void YouTubeMusicSource::drain_title_pipe_locked(Pipe* p) {
     } catch (...) {}
     // yt-dlp's %(thumbnail)s is a public i.ytimg.com URL the browser loads directly.
     if (!thumb.empty() && thumb != "NA") p->info.artwork_url = std::move(thumb);
-    CloseHandle(p->title_pipe);
+    if (p->title_pipe) CloseHandle(p->title_pipe);
     p->title_pipe = nullptr;
 }
 
@@ -709,8 +786,6 @@ void YouTubeMusicSource::pump(RingBuffer& ring) {
         return;
     }
 
-    if (!p->read_pipe) return;
-
     auto on_eof = [&] {
         if (p->bytes_written == 0) {
             if (++consecutive_failed_ >= 3) {
@@ -729,6 +804,46 @@ void YouTubeMusicSource::pump(RingBuffer& ring) {
             p->read_pipe = nullptr;
         }
     };
+
+    // Native helper path: non-blocking loopback socket instead of a pipe.
+    if (p->pcm_sock != INVALID_SOCKET) {
+        for (;;) {
+            const std::size_t writable = ring.writable();
+            if (writable < 4) break;
+            std::size_t want = std::min<std::size_t>(writable, 4096);
+            want &= ~std::size_t{3};
+            if (want <= p->carry_n) break;
+            std::byte buf[4096];
+            const std::size_t have = p->carry_n;
+            std::memcpy(buf, p->carry, have);
+            const int got = native::sock_read(p->pcm_sock, buf + have, (int)(want - have));
+            if (got == 0) break;
+            if (got < 0) {
+                closesocket(p->pcm_sock);
+                p->pcm_sock = INVALID_SOCKET;
+                on_eof();
+                return;
+            }
+            const std::size_t total   = have + (std::size_t)got;
+            const std::size_t aligned = total & ~std::size_t{3};
+            p->carry_n                = total - aligned;
+            std::memcpy(p->carry, buf + aligned, p->carry_n);
+            if (aligned) {
+                eq_.process(reinterpret_cast<int16_t*>(buf), aligned / 4u);
+                ring.write(buf, aligned);
+                p->bytes_written += aligned;
+                update_position();
+            }
+            if (state_.load(std::memory_order_acquire) == PlaybackState::buffering &&
+                ring.readable() > 32 * 1024)
+                state_.store(PlaybackState::playing, std::memory_order_release);
+        }
+        update_position();
+        maybe_spawn_prefetch_locked();
+        return;
+    }
+
+    if (!p->read_pipe) return;
 
     DWORD avail = 0;
     if (!PeekNamedPipe(p->read_pipe, nullptr, 0, nullptr, &avail, nullptr)) {
