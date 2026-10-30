@@ -261,6 +261,12 @@ Config load_config(const std::filesystem::path& path) {
         cfg.playback.hotkeys.kb_playpause || cfg.playback.hotkeys.pad_playpause ||
         cfg.playback.hotkeys.kb_prev || cfg.playback.hotkeys.pad_prev ||
         cfg.playback.hotkeys.kb_next_station || cfg.playback.hotkeys.pad_next_station;
+    const auto& nv     = section(root, "native");
+    cfg.native.enabled = pick<bool>(nv, "enabled", cfg.native.enabled);
+    cfg.native.helper  = pick<std::string>(nv, "helper", "");
+    cfg.native.yt_dlp  = pick<std::string>(nv, "yt_dlp", "");
+    cfg.native.ffmpeg  = pick<std::string>(nv, "ffmpeg", "");
+
     if (legacy_quick_station_skip && !any_hotkey_bound) {
         cfg.playback.hotkeys.kb_skip = 0x9999; // legacy quick-skip sentinel
         cfg.playback.hotkeys.pad_skip = 0x9999; // legacy quick-skip sentinel
@@ -473,6 +479,12 @@ void save_config(const std::filesystem::path& path, const Config& cfg) {
     e.kv("pad_prev", (int64_t)cfg.playback.hotkeys.pad_prev);
     e.kv("kb_next_station", (int64_t)cfg.playback.hotkeys.kb_next_station);
     e.kv("pad_next_station", (int64_t)cfg.playback.hotkeys.pad_next_station);
+
+    e.header("native");
+    e.kv("enabled", cfg.native.enabled);
+    e.kv("helper", cfg.native.helper);
+    e.kv("yt_dlp", cfg.native.yt_dlp);
+    e.kv("ffmpeg", cfg.native.ffmpeg);
 
     auto tmp  = path;
     tmp      += ".tmp";
